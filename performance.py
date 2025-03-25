@@ -4,38 +4,16 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from causalimpact import CausalImpact
 import yfinance as yf
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from datetime import datetime
-import os
 
-# Função para autenticar e acessar o Google Search Console via OAuth
+# Função para autenticar e acessar o Google Search Console
 def authenticate_gsc():
     SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
-    creds = None
-    
-    # O arquivo token.json armazena o token de acesso e atualização do usuário.
-    # Se não houver token válido, o processo de login será feito.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    
-    # Se não houver credenciais (ou as credenciais expiraram), o usuário deve se autenticar.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'client_secrets.json', SCOPES)  # Insira o caminho do seu arquivo de credenciais OAuth 2.0
-            creds = flow.run_local_server(port=8501)  # A autenticação será feita no navegador
-    
-        # Salve as credenciais para a próxima vez que o script for executado
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-    
-    # Criação do serviço da API
-    webmasters_service = build('webmasters', 'v3', credentials=creds)
+    KEY_FILE_PATH = 'path_to_your_service_account_file.json'  # Caminho para o seu arquivo JSON de conta de serviço
+    credentials = service_account.Credentials.from_service_account_file(KEY_FILE_PATH, scopes=SCOPES)
+    webmasters_service = build('webmasters', 'v3', credentials=credentials)
     return webmasters_service
 
 # Função para obter dados do Google Search Console
