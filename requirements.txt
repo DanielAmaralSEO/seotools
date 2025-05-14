@@ -1,4 +1,5 @@
 streamlit
+oauth2client
 yfinance
 pycausalimpact
 google-auth
