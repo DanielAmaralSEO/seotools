@@ -52,18 +52,8 @@ if st.button("🚀 Enviar para a Indexing API"):
                 if "error" in result:
                     results.append(f"❌ Erro com {url}: ({result['error']['status']}) {result['error']['message']}")
                 else:
-                    if "urlNotificationMetadata" in result:
-    metadata = result["urlNotificationMetadata"]
-    url_notif = metadata.get("url", "N/A")
-    if "latestUpdate" in metadata:
-        update = metadata["latestUpdate"]
-        notify_time = update.get("notifyTime", "N/A")
-        update_type = update.get("type", "N/A")
-        results.append(f"✅ {url_notif} enviado com sucesso. Última atualização: {notify_time} ({update_type})")
-    else:
-        results.append(f"✅ {url_notif} enviado com sucesso. Nenhuma atualização anterior registrada.")
-else:
-    results.append(f"✅ {url} enviado com sucesso. (Sem metadados retornados)")
+                    notify_time = result['urlNotificationMetadata']['latestUpdate']['notifyTime']
+                    results.append(f"✅ {url} enviado com sucesso. Última atualização: {notify_time}")
 
 
             st.success("Processo finalizado!")
