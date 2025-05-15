@@ -27,17 +27,16 @@ if st.button("🚀 Enviar para a Indexing API"):
         st.error("Você precisa inserir pelo menos uma URL.")
     else:
         try:
-            SCOPES = ["https://www.googleapis.com/auth/indexing"]
             credentials = ServiceAccountCredentials.from_json_keyfile_dict(
                 json.load(service_account_file),
-                scopes=SCOPES
+                scopes=["https://www.googleapis.com/auth/indexing"]
             )
             http = credentials.authorize(httplib2.Http())
             ENDPOINT = "https://indexing.googleapis.com/v3/urlNotifications:publish"
 
             urls = [url.strip() for url in raw_urls.strip().split("\n") if url.strip()]
             if len(urls) > 100:
-                st.warning("Atenção: você inseriu mais de 100 URLs. Somente as 100 primeiras serão processadas.")
+                st.warning("Você inseriu mais de 100 URLs. Serão processadas somente as 100 primeiras.")
                 urls = urls[:100]
 
             results = []
@@ -50,16 +49,29 @@ if st.button("🚀 Enviar para a Indexing API"):
                 result = json.loads(content.decode())
 
                 if "error" in result:
-                    results.append(f"❌ Erro com {url}: ({result['error']['status']}) {result['error']['message']}")
+                    err = result["error"]
+                    results.append(
+                        f"❌ Erro com {url}: ({err.get('status', 'Desconhecido')}) {err.get('message', 'Sem mensagem')}"
+                    )
                 else:
-                    notify_time = result['urlNotificationMetadata']['latestUpdate']['notifyTime']
-                    results.append(f"✅ {url} enviado com sucesso. Última atualização: {notify_time}")
+                    metadata = result.get("urlNotificationMetadata", {})
+                    url_info = metadata.get("url", url)
+                    latest = metadata.get("latestUpdate")
 
+                    if latest:
+                        notify_time = latest.get("notifyTime", "N/A")
+                        update_type = latest.get("type", "N/A")
+                        results.append(
+                            f"✅ {url_info} enviado com sucesso. Última atualização: {notify_time} ({update_type})"
+                        )
+                    else:
+                        results.append(
+                            f"✅ {url_info} enviado com sucesso. Nenhuma atualização anterior registrada."
+                        )
 
-            st.success("Processo finalizado!")
-            st.write("### Resultados:")
+            st.success("✅ Processo finalizado com as URLs enviadas:")
             for r in results:
                 st.write(r)
 
         except Exception as e:
-            st.error(f"Ocorreu um erro ao processar a solicitação: {str(e)}")
+            st.error(f"❌ Ocorreu um erro ao processar a solicitação: {str(e)}")
