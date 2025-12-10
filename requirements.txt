@@ -1,3 +1,6 @@
 streamlit
 oauth2client
-sklearn.cluster
+pandas
+numpy
+scikit-learn
+plotly
