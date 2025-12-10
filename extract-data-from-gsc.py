@@ -23,7 +23,7 @@ def login_button():
     flow = Flow.from_client_secrets_file(
         "client_secret.json",
         scopes=SCOPES,
-        redirect_uri=st.secrets["redirect_uri"]
+        redirect_uri=st.secrets["https://extract-data-from-gsc.streamlit.app/"]
     )
     
     auth_url, state = flow.authorization_url(prompt="consent")
