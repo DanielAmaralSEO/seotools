@@ -1,150 +1,187 @@
 import streamlit as st
+from oauth2client.client import OAuth2WebServerFlow
+from googleapiclient.discovery import build
 import pandas as pd
-import numpy as np
 from sklearn.cluster import KMeans
+import numpy as np
 import plotly.express as px
+import httplib2
 
-st.set_page_config(page_title="GSC Anomaly Detector (Upload CSV)", layout="wide")
+st.set_page_config(page_title="GSC Anomaly Detector", layout="wide")
 
-# -----------------------------------------------------------
-# HEADER
-# -----------------------------------------------------------
-st.title("🔍 GSC Anomaly Detector – Upload CSV")
-st.write("Faça upload do CSV exportado do Google Search Console para identificar anomalias em *Queries*.")
-
-st.info("📌 **Requisitos do CSV:** deve conter pelo menos as colunas: `Query`, `Date`, `Impressions`, `Clicks`.")
+st.title("🔍 Google Search Console – Anomaly Detection (Clicks & Impressions)")
+st.write("Detecte anomalias em consultas do Google Search Console usando K-Means.")
 
 # -----------------------------------------------------------
-# UPLOAD
+# 1. CREDENCIAIS / AUTENTICAÇÃO
 # -----------------------------------------------------------
-uploaded_file = st.file_uploader("Faça upload do arquivo CSV exportado do GSC", type=["csv"])
+st.header("1️⃣ Autenticação com Google Search Console")
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+CLIENT_ID = st.text_input("CLIENT_ID", "")
+CLIENT_SECRET = st.text_input("CLIENT_SECRET", "", type="password")
+REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
+OAUTH_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 
-    # Normalizar colunas (GSC às vezes exporta com nomes diferentes)
-    df.columns = [col.strip().capitalize() for col in df.columns]
+if CLIENT_ID and CLIENT_SECRET:
+    flow = OAuth2WebServerFlow(CLIENT_ID, CLIENT_SECRET, OAUTH_SCOPE, REDIRECT_URI)
+    authorize_url = flow.step1_get_authorize_url()
 
-    # Verificação mínima
-    required_cols = ["Query", "Date"]
-    if not all(col in df.columns for col in required_cols):
-        st.error("O CSV precisa ter pelo menos: Query, Date.")
-        st.stop()
+    st.markdown(f"[Clique para autenticar no Google]({authorize_url})")
 
-    # Garantir colunas de métricas
-    if "Impressions" not in df.columns:
-        df["Impressions"] = 0
-    if "Clicks" not in df.columns:
-        df["Clicks"] = 0
+    auth_code = st.text_input("Cole aqui o Authorization Code:")
 
-    df["Date"] = pd.to_datetime(df["Date"])
+    if auth_code:
+        try:
+            credentials = flow.step2_exchange(auth_code)
+            http = httplib2.Http()
+            creds = credentials.authorize(http)
+            webmasters_service = build('searchconsole', 'v1', http=creds)
+            st.success("✔ Autenticado com sucesso!")
+        except Exception as e:
+            st.error(f"Erro na autenticação: {e}")
+            st.stop()
 
-    st.success("Arquivo carregado com sucesso!")
-    st.write("### Amostra do arquivo:")
-    st.dataframe(df.head())
+        # -----------------------------------------------------------
+        # 2. LISTAR PROPRIEDADES DO GSC
+        # -----------------------------------------------------------
+        st.header("2️⃣ Selecione a propriedade do Search Console")
 
-    # -----------------------------------------------------------
-    # EXCLUSÕES
-    # -----------------------------------------------------------
-    st.header("🔎 Filtros e Exclusões")
+        try:
+            site_list = webmasters_service.sites().list().execute()
+            sites = [s["siteUrl"] for s in site_list["siteEntry"]]
+            site_url = st.selectbox("Selecione o domínio:", sites)
+        except:
+            st.error("Erro ao carregar propriedades.")
+            st.stop()
 
-    exclude_terms = st.text_input(
-        "Excluir queries contendo (separadas por vírgula)", ""
-    ).split(",")
+        # -----------------------------------------------------------
+        # 3. INPUT DE DATAS E COLETA DE DADOS
+        # -----------------------------------------------------------
+        st.header("3️⃣ Carregar dados do GSC")
 
-    def apply_exclusions(df):
-        df_f = df.copy()
-        for term in exclude_terms:
-            term = term.strip().lower()
-            if term:
-                df_f = df_f[~df_f["Query"].str.lower().str.contains(term)]
-        return df_f
+        col1, col2 = st.columns(2)
+        start_date = col1.date_input("Data inicial")
+        end_date = col2.date_input("Data final")
 
-    df_filtered = apply_exclusions(df)
+        def fetch_gsc_data(site_url, start_date, end_date):
+            request = {
+                'startDate': str(start_date),
+                'endDate': str(end_date),
+                'dimensions': ["query", "date"],
+                'rowLimit': 25000
+            }
+            return webmasters_service.searchanalytics().query(
+                siteUrl=site_url, body=request
+            ).execute().get("rows", [])
 
-    # -----------------------------------------------------------
-    # FUNÇÃO DE ANOMALIA (GENÉRICA)
-    # -----------------------------------------------------------
-    def detect_anomalies(df, metric, n_clusters=2):
-        df = df.copy()
-        df = df[df[metric] > 0]  # remove zeros
+        if st.button("Carregar Dados"):
+            with st.spinner("Consultando API do Google Search Console..."):
+                gsc_data = fetch_gsc_data(site_url, start_date, end_date)
 
-        if df.empty:
-            return df
+            if not gsc_data:
+                st.warning("Nenhum dado encontrado para o período selecionado.")
+                st.stop()
 
-        z = (df[metric] - df[metric].mean()) / df[metric].std()
-        df[f"{metric}_zscore"] = z
+            st.success(f"{len(gsc_data)} linhas carregadas!")
 
-        kmeans = KMeans(n_clusters=n_clusters, n_init="auto")
-        df["Cluster"] = kmeans.fit_predict(df[[f"{metric}_zscore"]])
+            # -----------------------------------------------------------
+            # 4. PROCESSAMENTO - IMPRESSIONS
+            # -----------------------------------------------------------
+            st.header("4️⃣ Processar Impressions e detectar Anomalias")
+            queries_to_exclude = st.text_area(
+                "Queries para excluir (separadas por vírgula)", ""
+            ).split(",")
 
-        anomaly_cluster = df.groupby("Cluster")[metric].mean().idxmax()
-        df["Anomaly"] = df["Cluster"] == anomaly_cluster
+            def process_gsc_data(gsc_data, exclude_queries):
+                data = []
+                for row in gsc_data:
+                    q, d = row["keys"]
+                    imp = row.get("impressions", 0)
 
-        return df
+                    if any(ex.strip().lower() in q.lower() for ex in exclude_queries if ex):
+                        continue
 
-    # -----------------------------------------------------------
-    # ABA DE IMPRESSIONS
-    # -----------------------------------------------------------
-    st.header("📈 Análise — Impressions")
+                    data.append([q, d, imp])
 
-    df_imp = detect_anomalies(df_filtered, "Impressions")
+                df = pd.DataFrame(data, columns=["Query", "Date", "Impressions"])
+                df["Date"] = pd.to_datetime(df["Date"])
+                return df
 
-    if df_imp.empty:
-        st.warning("Não há dados suficientes de impressions.")
-    else:
-        st.dataframe(df_imp[df_imp["Anomaly"]].head())
+            df = process_gsc_data(gsc_data, queries_to_exclude)
 
-        fig_imp = px.scatter(
-            df_imp,
-            x="Date",
-            y="Impressions",
-            color="Anomaly",
-            hover_data=["Query", "Impressions"],
-            title="Anomalias em Impressions"
-        )
-        st.plotly_chart(fig_imp, use_container_width=True)
+            def identify_anomalies(df):
+                df["zscore"] = (df["Impressions"] - df["Impressions"].mean()) / df["Impressions"].std()
+                kmeans = KMeans(n_clusters=2, n_init="auto")
+                df["Cluster"] = kmeans.fit_predict(df[["zscore"]])
+                anomaly_cluster = df.groupby("Cluster")["Impressions"].mean().idxmax()
+                df["Anomaly"] = df["Cluster"] == anomaly_cluster
+                return df
 
-    # -----------------------------------------------------------
-    # ABA DE CLICKS
-    # -----------------------------------------------------------
-    st.header("📈 Análise — Clicks")
+            df_anom = identify_anomalies(df)
 
-    df_clicks = detect_anomalies(df_filtered, "Clicks")
+            st.subheader("📌 Amostras de anomalias detectadas")
+            st.dataframe(df_anom[df_anom["Anomaly"]].head())
 
-    if df_clicks.empty:
-        st.warning("Não há dados suficientes de clicks.")
-    else:
-        st.dataframe(df_clicks[df_clicks["Anomaly"]].head())
+            # -----------------------------------------------------------
+            # 5. VISUALIZAÇÃO IMPRESSIONS
+            # -----------------------------------------------------------
+            st.subheader("📈 Visualização – Anomalias em Impressions")
+            fig_imp = px.scatter(
+                df_anom,
+                x="Date",
+                y="Impressions",
+                color="Anomaly",
+                hover_data=["Query"],
+                title="Anomalias em Impressions"
+            )
+            st.plotly_chart(fig_imp, use_container_width=True)
 
-        fig_clicks = px.scatter(
-            df_clicks,
-            x="Date",
-            y="Clicks",
-            color="Anomaly",
-            hover_data=["Query", "Clicks"],
-            title="Anomalias em Clicks"
-        )
-        st.plotly_chart(fig_clicks, use_container_width=True)
+            # -----------------------------------------------------------
+            # 6. VISUALIZAÇÃO CLICKS
+            # -----------------------------------------------------------
+            st.header("5️⃣ Processar Clicks e detectar Anomalias")
 
-    # -----------------------------------------------------------
-    # DOWNLOAD DOS RESULTADOS
-    # -----------------------------------------------------------
-    st.header("📥 Baixar Resultados")
+            def process_click_data(gsc_data, exclude_queries):
+                data = []
+                for row in gsc_data:
+                    q, d = row["keys"]
+                    clicks = row.get("clicks", 0)
 
-    df_imp_export = df_imp[["Query", "Date", "Impressions", "Anomaly"]]
-    df_clicks_export = df_clicks[["Query", "Date", "Clicks", "Anomaly"]]
+                    if clicks <= 0:
+                        continue
+                    if any(ex.strip().lower() in q.lower() for ex in exclude_queries if ex):
+                        continue
 
-    st.download_button(
-        "⬇ Baixar CSV — Anomalias em Impressions",
-        df_imp_export.to_csv(index=False),
-        file_name="anomalias_impressions.csv",
-        mime="text/csv"
-    )
+                    data.append([q, d, clicks])
 
-    st.download_button(
-        "⬇ Baixar CSV — Anomalias em Clicks",
-        df_clicks_export.to_csv(index=False),
-        file_name="anomalias_clicks.csv",
-        mime="text/csv"
-    )
+                df = pd.DataFrame(data, columns=["Query", "Date", "Clicks"])
+                df["Date"] = pd.to_datetime(df["Date"])
+                return df
+
+            df_clicks = process_click_data(gsc_data, queries_to_exclude)
+
+            def identify_anomalies_clicks(df):
+                df["zscore"] = (df["Clicks"] - df["Clicks"].mean()) / df["Clicks"].std()
+                kmeans = KMeans(n_clusters=2, n_init="auto")
+                df["Cluster"] = kmeans.fit_predict(df[["zscore"]])
+                anomaly_cluster = df.groupby("Cluster")["Clicks"].mean().idxmax()
+                df["Anomaly"] = df["Cluster"] == anomaly_cluster
+                return df
+
+            df_anom_clicks = identify_anomalies_clicks(df_clicks)
+
+            st.subheader("📌 Amostras de anomalias em Clicks")
+            st.dataframe(df_anom_clicks[df_anom_clicks["Anomaly"]].head())
+
+            fig_clicks = px.scatter(
+                df_anom_clicks,
+                x="Date",
+                y="Clicks",
+                color="Anomaly",
+                hover_data=["Query"],
+                title="Anomalias em Clicks"
+            )
+            st.plotly_chart(fig_clicks, use_container_width=True)
+
+            st.success("✔ Análise concluída!")
+
