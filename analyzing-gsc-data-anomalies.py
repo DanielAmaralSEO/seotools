@@ -19,7 +19,7 @@ st.header("1️⃣ Autenticação com Google Search Console")
 
 CLIENT_ID = st.text_input("CLIENT_ID", "")
 CLIENT_SECRET = st.text_input("CLIENT_SECRET", "", type="password")
-REDIRECT_URI = 'https://analyzing-gsc-data-anomaliespy-djsfz3nqbptkvgpphbjzh6.streamlit.app/'
+REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 OAUTH_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 
 if CLIENT_ID and CLIENT_SECRET:
