@@ -36,7 +36,7 @@ if "code" in st.query_params:
     flow = Flow.from_client_secrets_file(
         "client_secret.json",
         scopes=SCOPES,
-        redirect_uri=st.secrets["redirect_uri"]
+        redirect_uri=st.secrets["https://extract-data-from-gsc.streamlit.app/"]
     )
     
     flow.fetch_token(code=st.query_params["code"])
