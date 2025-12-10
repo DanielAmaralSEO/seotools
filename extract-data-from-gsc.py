@@ -1,94 +1,122 @@
 import streamlit as st
-import pandas as pd
 from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from datetime import date
-st.write(st.secrets)
-st.set_page_config(page_title="GSC Extractor")
+import pandas as pd
+import json
+import tempfile
 
-st.title("📊 Google Search Console – Extrator de Dados")
 
-# ---------- CONFIG ----------
-SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
+st.title("Extractor GSC via API (com upload de credenciais)")
 
-# Salva credenciais na sessão
+SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
+
+
+# ---------------------------------------------
+# 1 — UPLOAD DO ARQUIVO JSON
+# ---------------------------------------------
+uploaded_file = st.file_uploader(
+    "Faça upload do arquivo client_secret.json",
+    type=["json"]
+)
+
+if uploaded_file is None:
+    st.warning("⚠️ Você precisa enviar o arquivo client_secret.json para continuar.")
+    st.stop()
+
+
+# Salva o arquivo temporariamente
+with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+    temp_file.write(uploaded_file.read())
+    client_secret_path = temp_file.name
+
+
+# ---------------------------------------------
+# 2 — AUTENTICAÇÃO OAUTH
+# ---------------------------------------------
 if "credentials" not in st.session_state:
     st.session_state["credentials"] = None
 
-# ---------- AUTENTICAÇÃO ----------
+
 def login_button():
-    st.subheader("Faça login para continuar")
-
+    # Cria o fluxo OAuth
     flow = Flow.from_client_secrets_file(
-        "client_secret.json",
+        client_secret_path,
         scopes=SCOPES,
-        redirect_uri=st.secrets["redirect_uri"]
+        redirect_uri="urn:ietf:wg:oauth:2.0:oob"  # funciona em Streamlit
     )
-    
-    auth_url, state = flow.authorization_url(prompt="consent")
 
-    st.session_state["state"] = state
-    st.markdown(f"👉 [Clique aqui para autenticar]({auth_url})")
+    auth_url, _ = flow.authorization_url(prompt="consent")
 
-# Callback para receber o "code"
-if "code" in st.query_params:
-    flow = Flow.from_client_secrets_file(
-        "client_secret.json",
-        scopes=SCOPES,
-        redirect_uri=st.secrets["redirect_uri"]
-    )
-    
-    flow.fetch_token(code=st.query_params["code"])
-    st.session_state["credentials"] = flow.credentials
-    st.success("Autenticado com sucesso! 🎉")
+    st.markdown(f"### 🔐 Passo 1: Clique para fazer login no Google")
+    st.markdown(f"[Autorizar acesso ao Search Console]({auth_url})")
 
-# ---------- INTERFACE PRINCIPAL ----------
+    auth_code = st.text_input("Cole aqui o código de autorização:")
+
+    if st.button("Confirmar código"):
+        try:
+            flow.fetch_token(code=auth_code)
+            st.session_state["credentials"] = flow.credentials
+            st.success("🎉 Autenticado com sucesso!")
+        except Exception as e:
+            st.error(f"Erro na autenticação: {str(e)}")
+
+
 if st.session_state["credentials"] is None:
     login_button()
     st.stop()
 
 creds = st.session_state["credentials"]
 
-# GSC API service
-service = build("searchconsole", "v1", credentials=creds)
 
-# Lista de propriedades
-sites_list = service.sites().list().execute()
-valid_sites = [s["siteUrl"] for s in sites_list["siteEntry"] if s["permissionLevel"] != "siteUnverifiedUser"]
+# ---------------------------------------------
+# 3 — INTERFACE PARA CONSULTAR O SEARCH CONSOLE
+# ---------------------------------------------
+st.subheader("Extrair dados do Search Console")
 
-st.subheader("Configurações da consulta")
+site_url = st.text_input("URL da propriedade (ex: https://www.iclinic.com.br/)")
 
-site = st.selectbox("Selecione a propriedade", valid_sites)
+col1, col2 = st.columns(2)
+start_date = col1.date_input("Data inicial", value=date(2024, 1, 1))
+end_date = col2.date_input("Data final", value=date.today())
 
-start_date = st.date_input("Data inicial", date(2025, 1, 1))
-end_date = st.date_input("Data final", date.today())
+if st.button("Extrair dados"):
+    try:
+        service = build("searchconsole", "v1", credentials=creds)
 
-if st.button("Buscar dados"):
-    st.info("Consultando o Search Console, aguarde...")
+        body = {
+            "startDate": str(start_date),
+            "endDate": str(end_date),
+            "dimensions": ["query"],
+            "rowLimit": 25000
+        }
 
-    body = {
-        "startDate": str(start_date),
-        "endDate": str(end_date),
-        "dimensions": ["date", "query"],
-        "rowLimit": 25000
-    }
+        response = (
+            service.searchanalytics()
+            .query(siteUrl=site_url, body=body)
+            .execute()
+        )
 
-    response = service.searchanalytics().query(siteUrl=site, body=body).execute()
+        rows = response.get("rows", [])
 
-    rows = response.get("rows", [])
+        data = []
+        for r in rows:
+            data.append({
+                "date": start_date,  # só volta por período; se quiser diário, ajustamos
+                "query": r["keys"][0],
+                "clicks": r.get("clicks", 0),
+                "impressions": r.get("impressions", 0)
+            })
 
-    data = []
-    for r in rows:
-        data.append({
-            "date": r["keys"][0],
-            "query": r["keys"][1],
-            "clicks": r.get("clicks", 0),
-            "impressions": r.get("impressions", 0),
-        })
+        df = pd.DataFrame(data)
+        st.dataframe(df)
 
-    df = pd.DataFrame(data)
-    st.dataframe(df)
+        st.download_button(
+            "Baixar CSV",
+            df.to_csv(index=False),
+            file_name="gsc_export.csv",
+            mime="text/csv"
+        )
 
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Baixar CSV", csv, "gsc_export.csv", "text/csv")
+    except Exception as e:
+        st.error(f"Erro ao buscar dados: {str(e)}")
