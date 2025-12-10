@@ -4,3 +4,6 @@ pandas
 numpy
 scikit-learn
 plotly
+google-api-python-client
+oauth2client
+httplib2
