@@ -43,7 +43,7 @@ def login_button():
     flow = Flow.from_client_secrets_file(
         client_secret_path,
         scopes=SCOPES,
-        redirect_uri="urn:ietf:wg:oauth:2.0:oob"  # funciona em Streamlit
+        redirect_uri="https://extract-data-from-gsc.streamlit.app/"  # funciona em Streamlit
     )
 
     auth_url, _ = flow.authorization_url(prompt="consent")
