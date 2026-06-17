@@ -604,13 +604,48 @@ st.info(
     "Google structured data documentation indicates eligibility for rich-result features, not guaranteed Search appearance. Use this as an audit prioritization model."
 )
 
-st.sidebar.header("1. Choose the niche")
+st.sidebar.header("1. Choose or customize the niche")
+
+niche_mode = st.sidebar.radio(
+    "Niche mode",
+    ["Use preset niche", "Customize niche"],
+    horizontal=False,
+    key="niche_mode"
+)
 
 selected_niche = st.sidebar.selectbox(
-    "Niche / site type",
+    "Base niche / site type",
     list(NICHE_PLAYBOOKS.keys()),
     key="selected_niche"
 )
+
+base_playbook_terms = NICHE_PLAYBOOKS[selected_niche]
+
+all_available_terms = sorted(
+    set(all_df["term"].dropna().unique().tolist())
+    .union(set(SCHEMA_KNOWLEDGE.keys()))
+)
+
+if niche_mode == "Customize niche":
+    custom_playbook_terms = st.sidebar.multiselect(
+        "Customize schema terms for this niche",
+        options=all_available_terms,
+        default=[term for term in base_playbook_terms if term in all_available_terms],
+        key="custom_playbook_terms"
+    )
+
+    custom_niche_name = st.sidebar.text_input(
+        "Custom niche name",
+        value=f"Custom {selected_niche}",
+        key="custom_niche_name"
+    )
+
+    active_niche = custom_niche_name
+    active_playbook_terms = custom_playbook_terms
+
+else:
+    active_niche = selected_niche
+    active_playbook_terms = base_playbook_terms
 
 selected_month = st.sidebar.selectbox(
     "Schema.org usage dataset month",
@@ -633,7 +668,28 @@ detected_terms = parse_detected_schemas(detected_text)
 base_df = all_df[all_df["month"] == selected_month].copy()
 df = enrich(base_df, selected_niche, detected_terms)
 
-playbook_terms = NICHE_PLAYBOOKS[selected_niche]
+if niche_mode == "Customize niche":
+    df["in_niche_playbook"] = df["term"].apply(
+        lambda term: term in active_playbook_terms
+    )
+
+    df["niche_relevant"] = df["term"].apply(
+        lambda term: term in active_playbook_terms
+    )
+
+    df["priority_score"] = (
+        df["adoption_tier"] * 8
+        + df["seo_value"] * 8
+        + df["google_status"].apply(status_points)
+        + df["niche_relevant"].astype(int) * 15
+        + df["in_niche_playbook"].astype(int) * 15
+        - df["cms_bias"].apply(bias_penalty)
+    ).clip(lower=0, upper=100).round(0).astype(int)
+
+    df["priority"] = df["priority_score"].apply(priority_label)
+    df["recommendation_bucket"] = df.apply(classify_opportunity, axis=1)
+
+playbook_terms = active_playbook_terms
 playbook_df = df[df["term"].isin(playbook_terms)].copy()
 
 # Include knowledge-layer terms even if the usage dataset does not contain them.
@@ -691,7 +747,7 @@ tabs = st.tabs([
 # =========================================================
 
 with tabs[0]:
-    st.header(f"{selected_niche} Schema Playbook")
+    f"{active_niche} Schema Playbook"
 
     st.markdown(
         "This is the recommended schema set for the selected niche, ranked by SEO priority."
@@ -715,7 +771,7 @@ with tabs[0]:
         y="priority_score",
         color="recommendation_bucket",
         hover_data=["bucket", "google_status", "google_feature", "site_status", "cms_bias"],
-        title=f"Schema Priority Score — {selected_niche}",
+        title=f"Schema Priority Score — {f"{active_niche} Schema Playbook"}",
         labels={"term": "Schema", "priority_score": "Priority Score"}
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -1041,7 +1097,7 @@ with tabs[6]:
     st.download_button(
         "Download CSV playbook",
         data=csv,
-        file_name=f"schema_niche_playbook_{selected_niche}_{selected_month}.csv",
+        file_name=f"schema_niche_playbook_{active_niche}_{selected_month}.csv"",
         mime="text/csv"
     )
 
@@ -1049,7 +1105,7 @@ with tabs[6]:
         "# What Schemas Should I Care About for My Niche?",
         "",
         f"Generated: {datetime.utcnow().strftime('%Y-%m-%d')}",
-        f"Niche: {selected_niche}",
+        f"Niche: {active_niche}",
         f"Dataset month: {selected_month}",
         "",
         "## Executive Summary",
@@ -1064,7 +1120,7 @@ with tabs[6]:
     ]
 
     for _, row in report_df.iterrows():
-        markdown.append(make_recommendation(row, selected_niche))
+        markdown.append(make_recommendation(row, active_niche))
         markdown.append("")
 
     markdown_text = "\n".join(markdown)
