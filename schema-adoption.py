@@ -14,7 +14,7 @@ st.set_page_config(
 # CONFIG
 # ==========================================================
 
-CSV_URL = "https://raw.githubusercontent.com/schemaorg/schemaorg/main/data/public_stats/google/latest.csv"
+CSV_URL = "https://raw.githubusercontent.com/schemaorg/schemaorg/main/data/public_stats/google/2026_05.csv"
 
 BUCKET_SCORE = {
     "< 1K": 1,
