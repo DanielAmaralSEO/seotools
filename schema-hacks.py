@@ -1441,9 +1441,9 @@ Use the results carefully:
 
     st.markdown(
         """
-Created by **Daniel Rocha**.
+Created by **Daniel Amaral**.
 
-LinkedIn: [Daniel Amaral Rocha](https://www.linkedin.com/in/danielamaralrocha/)
+LinkedIn: [Daniel Amaral](https://www.linkedin.com/in/danielamaralrocha/)
 
 Concept, SEO methodology, and product direction by Daniel Rocha.
 
