@@ -925,14 +925,45 @@ with tabs[4]:
     if not safe_default_buckets:
         safe_default_buckets = available_buckets
     
-    lens_filter = st.multiselect(
-        "Filter recommendation buckets",
-        available_buckets,
-        default=safe_default_buckets,
-        key="lens_filter"
+    available_buckets = sorted(
+        full_types["recommendation_bucket"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     )
-
-    lens_df = full_types[full_types["recommendation_bucket"].isin(lens_filter)].copy()
+    
+    preferred_buckets = [
+        "Hidden gap",
+        "Core missing schema",
+        "Popular / plugin-driven",
+        "Semantic opportunity",
+    ]
+    
+    safe_default_buckets = [
+        bucket for bucket in preferred_buckets
+        if bucket in available_buckets
+    ]
+    
+    if not safe_default_buckets:
+        safe_default_buckets = available_buckets
+    
+    if not available_buckets:
+        st.warning("No recommendation buckets available for this dataset/month.")
+        lens_filter = []
+    else:
+        lens_filter = st.multiselect(
+            "Filter recommendation buckets",
+            options=available_buckets,
+            default=safe_default_buckets,
+            key="lens_filter"
+        )
+    if lens_filter:
+        lens_df = full_types[
+            full_types["recommendation_bucket"].astype(str).isin(lens_filter)
+        ].copy()
+    else:
+        lens_df = full_types.copy()
 
     fig_lens = px.scatter(
         lens_df,
