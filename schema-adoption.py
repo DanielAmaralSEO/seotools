@@ -37,52 +37,27 @@ def load_schema_stats():
         st.error("Could not download Schema.org statistics file.")
         st.stop()
 
-    csv_data = StringIO(response.text)
+    df = pd.read_csv(StringIO(response.text))
 
-    df = pd.read_csv(csv_data)
+    df["term"] = df["Name"]
+    df["term_type"] = df["Class"]
+    df["bucket"] = df["Domain Bucket"]
 
-    cols = [c.lower() for c in df.columns]
+    BUCKET_SCORE = {
+        "< 1K": 1,
+        "1K - 10K": 2,
+        "10K - 100K": 3,
+        "100K - 1M": 4,
+        "> 1M": 5,
+    }
 
-    uri_col = None
-    bucket_col = None
-    type_col = None
-
-    for col in df.columns:
-
-        lower = col.lower()
-
-        if "uri" in lower:
-            uri_col = col
-
-        if "bucket" in lower:
-            bucket_col = col
-
-        if "type" in lower:
-            type_col = col
-
-    if uri_col is None:
-        st.error("URI column not found.")
-        st.stop()
-
-    if bucket_col is None:
-        st.error("Bucket column not found.")
-        st.stop()
-
-    df["term"] = (
-        df[uri_col]
+    df["score"] = (
+        df["bucket"]
         .astype(str)
-        .str.replace("http://schema.org/", "", regex=False)
-        .str.replace("https://schema.org/", "", regex=False)
+        .str.strip()
+        .map(BUCKET_SCORE)
+        .fillna(0)
     )
-
-    df["bucket"] = df[bucket_col].astype(str)
-
-    df["score"] = df["bucket"].map(BUCKET_SCORE)
-
-    if type_col:
-        df["term_type"] = df[type_col]
-    else:
-        df["term_type"] = "Unknown"
 
     return df
 
