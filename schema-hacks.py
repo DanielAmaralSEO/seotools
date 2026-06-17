@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,8 +11,8 @@ from datetime import datetime
 # =========================================================
 
 st.set_page_config(
-    page_title="Schema SEO Intelligence",
-    page_icon="🧠",
+    page_title="Schema Comparator for SEO",
+    page_icon="⚖️",
     layout="wide"
 )
 
@@ -27,7 +28,15 @@ BUCKET_ORDER = {
     "> 1M": 5,
 }
 
-BUCKET_LABELS = {
+BUCKET_MIDPOINT = {
+    "< 1K": 500,
+    "1K - 10K": 5500,
+    "10K - 100K": 55000,
+    "100K - 1M": 550000,
+    "> 1M": 1500000,
+}
+
+BUCKET_LABEL = {
     1: "< 1K domains",
     2: "1K - 10K domains",
     3: "10K - 100K domains",
@@ -35,273 +44,285 @@ BUCKET_LABELS = {
     5: "> 1M domains",
 }
 
-# This is an editable SEO knowledge layer.
-# It should be maintained over time as Google Search documentation changes.
-SEO_SCHEMA_LIBRARY = {
-    "Product": {
-        "search_feature": "Product snippets / Merchant listings",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "High",
-        "templates": ["Product page", "Category page"],
-        "industries": ["Ecommerce", "Marketplace", "SaaS"],
-        "why_it_matters": "Commercially important. Often tied to price, availability, reviews, and merchant experiences.",
-        "implementation_note": "Prioritize completeness: name, image, description, offers, price, availability, brand, sku, aggregateRating when visible.",
-    },
-    "Offer": {
-        "search_feature": "Product snippets / Merchant listings",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "Medium",
-        "templates": ["Product page"],
-        "industries": ["Ecommerce", "Marketplace"],
-        "why_it_matters": "Essential for commercial pages where price and availability are visible.",
-        "implementation_note": "Use inside Product where possible. Keep price and availability synchronized with visible page content.",
-    },
-    "AggregateRating": {
-        "search_feature": "Review snippets / Product snippets",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "Medium",
-        "templates": ["Product page", "Review page", "Location page"],
-        "industries": ["Ecommerce", "Marketplace", "Local Business", "Entertainment", "Education"],
-        "why_it_matters": "Can support review/rating visibility when ratings are genuine and visible.",
-        "implementation_note": "Only mark up ratings that users can see on the page. Avoid self-serving review misuse.",
-    },
-    "Review": {
-        "search_feature": "Review snippets",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "Medium",
-        "templates": ["Product page", "Review page", "Location page"],
-        "industries": ["Ecommerce", "Marketplace", "Local Business", "Entertainment"],
-        "why_it_matters": "Useful where reviews are a core part of the page experience.",
-        "implementation_note": "Reviews must be genuine, visible, and tied to the reviewed item.",
-    },
-    "BreadcrumbList": {
-        "search_feature": "Breadcrumbs",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "High",
-        "templates": ["All templates"],
-        "industries": ["Ecommerce", "Marketplace", "Publisher", "Local Business", "SaaS", "Education", "Healthcare", "Entertainment"],
-        "why_it_matters": "Foundational technical SEO markup for site architecture and SERP breadcrumb display.",
-        "implementation_note": "Usually safe and high-coverage. Audit template consistency and canonical hierarchy.",
-    },
-    "Organization": {
-        "search_feature": "Organization / Logo",
-        "rich_result_status": "Supported",
-        "business_value": 3,
-        "plugin_bias": "High",
-        "templates": ["Homepage", "About page"],
-        "industries": ["Ecommerce", "Marketplace", "Publisher", "Local Business", "SaaS", "Education", "Healthcare", "Entertainment"],
-        "why_it_matters": "Helps describe the brand/entity behind the site.",
-        "implementation_note": "Use stable sameAs links, logo, name, url, contactPoint when appropriate.",
-    },
-    "LocalBusiness": {
-        "search_feature": "Local business rich results",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "Medium",
-        "templates": ["Homepage", "Location page"],
-        "industries": ["Local Business", "Healthcare"],
-        "why_it_matters": "Critical for businesses with physical locations or service areas.",
-        "implementation_note": "Validate NAP consistency, openingHours, address, geo, telephone, and location-specific pages.",
-    },
+# =========================================================
+# GOOGLE RICH RESULT KNOWLEDGE LAYER
+# =========================================================
+# Keep this dictionary editable.
+# It intentionally distinguishes:
+# - Schema.org type
+# - Google rich result documentation / Search feature
+# - Search intent / industry relevance
+# - Whether high adoption is likely inflated by CMS/plugin defaults
+
+GOOGLE_RICH_RESULT_MAP = {
     "Article": {
-        "search_feature": "Article rich results",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "High",
-        "templates": ["Article page", "Blog post"],
-        "industries": ["Publisher", "Education", "Healthcare", "SaaS"],
-        "why_it_matters": "Core markup for editorial pages and blogs.",
-        "implementation_note": "Audit headline, image, author, datePublished, dateModified, publisher.",
+        "google_status": "Documented rich result",
+        "google_feature": "Article",
+        "industries": ["Publisher", "News", "Education", "Healthcare", "SaaS"],
+        "templates": ["Article page", "Blog post", "News article"],
+        "intent": "Informational",
+        "seo_value": 4,
+        "cms_bias": "High",
+        "gap_note": "Often implemented by publishers and CMS templates. Audit freshness, authorship, images, and duplicate Article/WebPage markup.",
     },
     "NewsArticle": {
-        "search_feature": "Article rich results",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "Medium",
+        "google_status": "Documented rich result",
+        "google_feature": "Article",
+        "industries": ["Publisher", "News"],
         "templates": ["News article"],
-        "industries": ["Publisher"],
-        "why_it_matters": "Important for news publishers and timely editorial content.",
-        "implementation_note": "Use only for actual news content. Keep dates and authors accurate.",
+        "intent": "Informational",
+        "seo_value": 4,
+        "cms_bias": "Medium",
+        "gap_note": "Relevant for news content. Do not use for evergreen blog posts unless the page is truly news-oriented.",
     },
-    "VideoObject": {
-        "search_feature": "Video rich results",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "Medium",
-        "templates": ["Video page", "Article page", "Product page", "Course page"],
-        "industries": ["Publisher", "Education", "Entertainment", "SaaS", "Ecommerce"],
-        "why_it_matters": "High value when video is a meaningful page asset.",
-        "implementation_note": "Audit thumbnailUrl, uploadDate, duration, name, description, embedUrl/contentUrl.",
+    "BlogPosting": {
+        "google_status": "Related to documented Article markup",
+        "google_feature": "Article",
+        "industries": ["Publisher", "Education", "Healthcare", "SaaS"],
+        "templates": ["Blog post", "Article page"],
+        "intent": "Informational",
+        "seo_value": 3,
+        "cms_bias": "High",
+        "gap_note": "Common in CMSs. Can be useful, but Article/BlogPosting alone rarely creates a competitive advantage.",
+    },
+    "BreadcrumbList": {
+        "google_status": "Documented rich result",
+        "google_feature": "Breadcrumb",
+        "industries": ["Ecommerce", "Marketplace", "Publisher", "Local Business", "SaaS", "Education", "Healthcare", "Entertainment", "Travel"],
+        "templates": ["All templates"],
+        "intent": "Navigation",
+        "seo_value": 5,
+        "cms_bias": "High",
+        "gap_note": "Foundational markup. High adoption is expected because CMSs and SEO plugins often generate it automatically.",
+    },
+    "Product": {
+        "google_status": "Documented rich result",
+        "google_feature": "Product snippets / Merchant listings",
+        "industries": ["Ecommerce", "Marketplace", "SaaS"],
+        "templates": ["Product page"],
+        "intent": "Commercial",
+        "seo_value": 5,
+        "cms_bias": "High",
+        "gap_note": "High actionability for ecommerce, but high adoption may be inflated by Shopify, WooCommerce, and SEO plugins.",
+    },
+    "Offer": {
+        "google_status": "Required/related property type for Product",
+        "google_feature": "Product snippets / Merchant listings",
+        "industries": ["Ecommerce", "Marketplace"],
+        "templates": ["Product page"],
+        "intent": "Commercial",
+        "seo_value": 5,
+        "cms_bias": "Medium",
+        "gap_note": "Important for Product eligibility. Price and availability must match visible page content.",
+    },
+    "AggregateRating": {
+        "google_status": "Related to documented Review/Product markup",
+        "google_feature": "Review snippets / Product snippets",
+        "industries": ["Ecommerce", "Marketplace", "Local Business", "Entertainment", "Education", "Travel"],
+        "templates": ["Product page", "Review page", "Location page", "Course page"],
+        "intent": "Trust / evaluation",
+        "seo_value": 4,
+        "cms_bias": "Medium",
+        "gap_note": "Valuable only when ratings are genuine and visible. Misuse can create quality and compliance risk.",
+    },
+    "Review": {
+        "google_status": "Documented rich result",
+        "google_feature": "Review snippet",
+        "industries": ["Ecommerce", "Marketplace", "Local Business", "Entertainment", "Education", "Travel"],
+        "templates": ["Product page", "Review page", "Location page"],
+        "intent": "Trust / evaluation",
+        "seo_value": 4,
+        "cms_bias": "Medium",
+        "gap_note": "Useful where review content is a primary part of the page. Avoid self-serving or invisible reviews.",
+    },
+    "LocalBusiness": {
+        "google_status": "Documented rich result",
+        "google_feature": "Local business",
+        "industries": ["Local Business", "Healthcare", "Travel"],
+        "templates": ["Homepage", "Location page"],
+        "intent": "Local / navigational",
+        "seo_value": 5,
+        "cms_bias": "Medium",
+        "gap_note": "Critical for location pages. Audit NAP, opening hours, address, geo, phone, and entity consistency.",
+    },
+    "Organization": {
+        "google_status": "Documented rich result / structured data feature",
+        "google_feature": "Organization / Logo",
+        "industries": ["Ecommerce", "Marketplace", "Publisher", "News", "Local Business", "SaaS", "Education", "Healthcare", "Entertainment", "Travel"],
+        "templates": ["Homepage", "About page"],
+        "intent": "Entity clarity",
+        "seo_value": 3,
+        "cms_bias": "High",
+        "gap_note": "Useful for entity disambiguation, but high adoption is often plugin-driven. Not usually a template-level growth lever.",
     },
     "Event": {
-        "search_feature": "Event rich results",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "Low",
+        "google_status": "Documented rich result",
+        "google_feature": "Event",
+        "industries": ["Local Business", "Education", "Entertainment", "Publisher", "Travel"],
         "templates": ["Event page"],
-        "industries": ["Local Business", "Education", "Entertainment", "Publisher"],
-        "why_it_matters": "Highly actionable when a site publishes real events.",
-        "implementation_note": "Use for real events with dates, locations, ticket/offer data where visible.",
+        "intent": "Event discovery",
+        "seo_value": 5,
+        "cms_bias": "Low",
+        "gap_note": "Strong opportunity when event pages exist. Lower plugin-default bias makes gaps more meaningful.",
     },
     "JobPosting": {
-        "search_feature": "Job posting rich results",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "Low",
-        "templates": ["Job page"],
+        "google_status": "Documented rich result",
+        "google_feature": "Job posting",
         "industries": ["Marketplace", "SaaS", "Education"],
-        "why_it_matters": "Very actionable for career sites and job boards.",
-        "implementation_note": "Audit hiringOrganization, jobLocation, datePosted, validThrough, employmentType, salary when visible.",
+        "templates": ["Job page", "Careers page"],
+        "intent": "Jobs",
+        "seo_value": 5,
+        "cms_bias": "Low",
+        "gap_note": "Highly actionable for job boards and career pages. Requires freshness and validThrough hygiene.",
     },
     "Course": {
-        "search_feature": "Course info",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "Low",
-        "templates": ["Course page"],
+        "google_status": "Documented rich result",
+        "google_feature": "Course / Course list",
         "industries": ["Education"],
-        "why_it_matters": "High relevance for education businesses and course catalogs.",
-        "implementation_note": "Keep course name, provider, description, and offer details aligned with visible content.",
+        "templates": ["Course page", "Course listing"],
+        "intent": "Education",
+        "seo_value": 5,
+        "cms_bias": "Low",
+        "gap_note": "High gap value for education websites. Adoption may be lower than its niche importance.",
     },
     "Recipe": {
-        "search_feature": "Recipe rich results",
-        "rich_result_status": "Supported",
-        "business_value": 5,
-        "plugin_bias": "Medium",
+        "google_status": "Documented rich result",
+        "google_feature": "Recipe",
+        "industries": ["Publisher", "Food"],
         "templates": ["Recipe page"],
-        "industries": ["Publisher"],
-        "why_it_matters": "Highly relevant for recipe publishers.",
-        "implementation_note": "Audit ingredients, instructions, images, cookTime, prepTime, nutrition when visible.",
+        "intent": "Food / how-to",
+        "seo_value": 5,
+        "cms_bias": "Medium",
+        "gap_note": "Highly relevant for recipe publishers; not relevant outside recipe content.",
     },
-    "SoftwareApplication": {
-        "search_feature": "Software app rich results",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "Low",
-        "templates": ["App page", "Software product page"],
-        "industries": ["SaaS"],
-        "why_it_matters": "Useful for SaaS, app stores, tools, and software directories.",
-        "implementation_note": "Audit operatingSystem, applicationCategory, offers, aggregateRating when visible.",
-    },
-    "Dataset": {
-        "search_feature": "Dataset search",
-        "rich_result_status": "Supported",
-        "business_value": 3,
-        "plugin_bias": "Low",
-        "templates": ["Dataset page", "Research page"],
-        "industries": ["Education", "Publisher", "SaaS"],
-        "why_it_matters": "Useful for public data, research, and downloadable datasets.",
-        "implementation_note": "Use when there is a real dataset, not just a normal article.",
-    },
-    "FAQPage": {
-        "search_feature": "FAQ rich results",
-        "rich_result_status": "Limited / deprecated in many contexts",
-        "business_value": 2,
-        "plugin_bias": "High",
-        "templates": ["FAQ page", "Support page"],
-        "industries": ["Ecommerce", "SaaS", "Education", "Healthcare", "Local Business"],
-        "why_it_matters": "Still semantically valid, but often overused and no longer a reliable rich-result lever.",
-        "implementation_note": "Use only when FAQs are visible and useful. Do not prioritize over more actionable schema.",
-    },
-    "HowTo": {
-        "search_feature": "How-to rich results",
-        "rich_result_status": "Limited / deprecated in many contexts",
-        "business_value": 2,
-        "plugin_bias": "Medium",
-        "templates": ["Guide page", "Support page"],
-        "industries": ["Publisher", "Education", "SaaS"],
-        "why_it_matters": "Useful for instructional content but not as strong as it once was for rich-result visibility.",
-        "implementation_note": "Use only for genuine step-by-step content visible on the page.",
-    },
-    "Person": {
-        "search_feature": "No direct Search enhancement",
-        "rich_result_status": "Semantic only",
-        "business_value": 3,
-        "plugin_bias": "Medium",
-        "templates": ["Author page", "Bio page", "Article page"],
-        "industries": ["Publisher", "Education", "Healthcare"],
-        "why_it_matters": "Useful for author/entity clarity, especially expert-led content.",
-        "implementation_note": "Use for real authors, experts, doctors, instructors, and contributors.",
-    },
-    "TVSeries": {
-        "search_feature": "No direct Search enhancement",
-        "rich_result_status": "Semantic only",
-        "business_value": 3,
-        "plugin_bias": "Low",
-        "templates": ["Series page"],
-        "industries": ["Entertainment"],
-        "why_it_matters": "Relevant for entertainment catalogs and entity architecture.",
-        "implementation_note": "Pair with TVSeason, TVEpisode, VideoObject, Review, and AggregateRating where applicable.",
-    },
-    "TVSeason": {
-        "search_feature": "No direct Search enhancement",
-        "rich_result_status": "Semantic only",
-        "business_value": 2,
-        "plugin_bias": "Low",
-        "templates": ["Season page"],
-        "industries": ["Entertainment"],
-        "why_it_matters": "Useful where season-level pages exist.",
-        "implementation_note": "Do not implement unless the site has dedicated season pages or clear season entities.",
-    },
-    "TVEpisode": {
-        "search_feature": "No direct Search enhancement",
-        "rich_result_status": "Semantic only",
-        "business_value": 2,
-        "plugin_bias": "Low",
-        "templates": ["Episode page"],
-        "industries": ["Entertainment"],
-        "why_it_matters": "Useful for episode-level catalogs.",
-        "implementation_note": "Pair with VideoObject when pages include playable video or episode metadata.",
+    "VideoObject": {
+        "google_status": "Documented rich result",
+        "google_feature": "Video",
+        "industries": ["Publisher", "News", "Education", "Entertainment", "SaaS", "Ecommerce"],
+        "templates": ["Video page", "Article page", "Product page", "Course page"],
+        "intent": "Media",
+        "seo_value": 4,
+        "cms_bias": "Medium",
+        "gap_note": "Often under-audited. Strong gap candidate when video is central to the page.",
     },
     "Movie": {
-        "search_feature": "Movie rich results",
-        "rich_result_status": "Supported",
-        "business_value": 4,
-        "plugin_bias": "Low",
-        "templates": ["Movie page"],
+        "google_status": "Documented rich result / carousel-compatible feature",
+        "google_feature": "Movie",
         "industries": ["Entertainment"],
-        "why_it_matters": "Relevant for movie catalogs, streaming libraries, and entertainment databases.",
-        "implementation_note": "Audit name, image, dateCreated, director, actor, aggregateRating when visible.",
+        "templates": ["Movie page", "Listing page"],
+        "intent": "Entertainment",
+        "seo_value": 4,
+        "cms_bias": "Low",
+        "gap_note": "Strong niche fit for entertainment catalogs and streaming/library sites.",
+    },
+    "Dataset": {
+        "google_status": "Documented rich result",
+        "google_feature": "Dataset",
+        "industries": ["Education", "Publisher", "SaaS", "Healthcare"],
+        "templates": ["Dataset page", "Research page"],
+        "intent": "Research / data",
+        "seo_value": 3,
+        "cms_bias": "Low",
+        "gap_note": "Niche but valuable when real datasets exist. Low adoption does not imply low relevance.",
+    },
+    "SoftwareApplication": {
+        "google_status": "Documented rich result",
+        "google_feature": "Software app",
+        "industries": ["SaaS", "Marketplace"],
+        "templates": ["Software product page", "App page"],
+        "intent": "Software / commercial",
+        "seo_value": 4,
+        "cms_bias": "Low",
+        "gap_note": "Useful for SaaS tools, app pages, and software directories.",
+    },
+    "FAQPage": {
+        "google_status": "Limited / reduced visibility",
+        "google_feature": "FAQ",
+        "industries": ["Ecommerce", "SaaS", "Education", "Healthcare", "Local Business"],
+        "templates": ["FAQ page", "Support page", "Product page"],
+        "intent": "Support / informational",
+        "seo_value": 2,
+        "cms_bias": "High",
+        "gap_note": "Historically overused. Treat as semantic support, not a primary rich-result growth lever.",
+    },
+    "HowTo": {
+        "google_status": "Limited / reduced visibility",
+        "google_feature": "How-to",
+        "industries": ["Publisher", "Education", "SaaS"],
+        "templates": ["Guide page", "Support page"],
+        "intent": "Instructional",
+        "seo_value": 2,
+        "cms_bias": "Medium",
+        "gap_note": "Use only for genuine step-by-step content. Do not over-prioritize versus stronger rich-result types.",
+    },
+    "Person": {
+        "google_status": "Not a standalone rich result",
+        "google_feature": "Entity understanding",
+        "industries": ["Publisher", "News", "Education", "Healthcare"],
+        "templates": ["Author page", "Bio page", "Article page"],
+        "intent": "Entity clarity",
+        "seo_value": 3,
+        "cms_bias": "Medium",
+        "gap_note": "Important for authors, experts, doctors, instructors, and E-E-A-T/entity clarity, but not a direct rich-result target.",
+    },
+    "TVSeries": {
+        "google_status": "Not a standalone rich result",
+        "google_feature": "Entity understanding",
+        "industries": ["Entertainment"],
+        "templates": ["Series page"],
+        "intent": "Entertainment entity",
+        "seo_value": 3,
+        "cms_bias": "Low",
+        "gap_note": "Useful for entertainment entity architecture. Compare against VideoObject and Movie for richer Search features.",
+    },
+    "TVSeason": {
+        "google_status": "Not a standalone rich result",
+        "google_feature": "Entity understanding",
+        "industries": ["Entertainment"],
+        "templates": ["Season page"],
+        "intent": "Entertainment entity",
+        "seo_value": 2,
+        "cms_bias": "Low",
+        "gap_note": "Use when season pages exist. Lower adoption is not a problem if the template needs the entity.",
+    },
+    "TVEpisode": {
+        "google_status": "Not a standalone rich result",
+        "google_feature": "Entity understanding",
+        "industries": ["Entertainment"],
+        "templates": ["Episode page"],
+        "intent": "Entertainment entity",
+        "seo_value": 2,
+        "cms_bias": "Low",
+        "gap_note": "Use when episode pages exist. Pair with VideoObject when pages contain playable video.",
     },
 }
 
-INDUSTRY_EXPECTED_SCHEMAS = {
-    "Ecommerce": ["Product", "Offer", "AggregateRating", "Review", "BreadcrumbList", "Organization", "FAQPage", "VideoObject"],
-    "Marketplace": ["Product", "Offer", "AggregateRating", "Review", "Organization", "BreadcrumbList", "JobPosting"],
-    "Publisher": ["Article", "NewsArticle", "Person", "Organization", "BreadcrumbList", "VideoObject", "FAQPage", "Dataset"],
+INDUSTRY_RECOMMENDED_SETS = {
+    "Ecommerce": ["Product", "Offer", "AggregateRating", "Review", "BreadcrumbList", "Organization", "VideoObject", "FAQPage"],
+    "Marketplace": ["Product", "Offer", "AggregateRating", "Review", "BreadcrumbList", "Organization", "JobPosting", "SoftwareApplication"],
+    "Publisher": ["Article", "NewsArticle", "BlogPosting", "Person", "Organization", "BreadcrumbList", "VideoObject", "FAQPage", "Dataset"],
+    "News": ["NewsArticle", "Article", "Person", "Organization", "BreadcrumbList", "VideoObject"],
     "Local Business": ["LocalBusiness", "Organization", "BreadcrumbList", "Review", "AggregateRating", "Event", "FAQPage"],
-    "SaaS": ["SoftwareApplication", "Organization", "Product", "FAQPage", "HowTo", "VideoObject", "BreadcrumbList", "Article"],
-    "Education": ["Course", "Article", "Person", "Organization", "FAQPage", "VideoObject", "Dataset", "BreadcrumbList", "Event"],
-    "Healthcare": ["LocalBusiness", "Person", "Article", "FAQPage", "BreadcrumbList", "Organization", "Review"],
-    "Entertainment": ["TVSeries", "TVSeason", "TVEpisode", "Movie", "VideoObject", "Review", "AggregateRating", "BreadcrumbList"],
+    "SaaS": ["SoftwareApplication", "Product", "Organization", "Article", "VideoObject", "FAQPage", "HowTo", "BreadcrumbList"],
+    "Education": ["Course", "Article", "Person", "Organization", "VideoObject", "Dataset", "FAQPage", "Event", "BreadcrumbList"],
+    "Healthcare": ["LocalBusiness", "Person", "Article", "Organization", "FAQPage", "Review", "Dataset", "BreadcrumbList"],
+    "Entertainment": ["Movie", "VideoObject", "TVSeries", "TVSeason", "TVEpisode", "Review", "AggregateRating", "BreadcrumbList"],
+    "Travel": ["LocalBusiness", "Event", "Review", "AggregateRating", "BreadcrumbList", "Organization", "FAQPage"],
 }
 
-TEMPLATE_MAP = {
-    "Homepage": ["Organization", "WebSite", "BreadcrumbList"],
-    "Product page": ["Product", "Offer", "AggregateRating", "Review", "BreadcrumbList", "VideoObject", "FAQPage"],
-    "Category page": ["BreadcrumbList", "ItemList", "CollectionPage", "Product"],
-    "Article page": ["Article", "Person", "Organization", "BreadcrumbList", "VideoObject", "FAQPage"],
-    "Location page": ["LocalBusiness", "Organization", "BreadcrumbList", "Review", "AggregateRating"],
-    "Course page": ["Course", "Organization", "Person", "VideoObject", "BreadcrumbList", "FAQPage"],
-    "Event page": ["Event", "Organization", "Offer", "BreadcrumbList"],
-    "Job page": ["JobPosting", "Organization", "BreadcrumbList"],
-    "Video page": ["VideoObject", "Organization", "BreadcrumbList"],
-    "Series page": ["TVSeries", "TVSeason", "TVEpisode", "VideoObject", "BreadcrumbList"],
+DEFAULT_COMPARE_BY_INDUSTRY = {
+    "Ecommerce": ["Product", "Offer", "AggregateRating", "Review", "BreadcrumbList", "VideoObject"],
+    "Marketplace": ["Product", "Offer", "Review", "AggregateRating", "JobPosting", "SoftwareApplication"],
+    "Publisher": ["Article", "NewsArticle", "BlogPosting", "VideoObject", "FAQPage", "Dataset"],
+    "News": ["NewsArticle", "Article", "VideoObject", "Person", "Organization", "BreadcrumbList"],
+    "Local Business": ["LocalBusiness", "Review", "AggregateRating", "Event", "Organization", "BreadcrumbList"],
+    "SaaS": ["SoftwareApplication", "Product", "VideoObject", "Article", "FAQPage", "HowTo"],
+    "Education": ["Course", "VideoObject", "Article", "Person", "Dataset", "FAQPage"],
+    "Healthcare": ["LocalBusiness", "Person", "Article", "Review", "FAQPage", "Dataset"],
+    "Entertainment": ["TVSeries", "TVSeason", "TVEpisode", "Movie", "VideoObject", "Review"],
+    "Travel": ["LocalBusiness", "Event", "Review", "AggregateRating", "BreadcrumbList", "FAQPage"],
 }
 
-PLUGIN_DEFAULT_TYPES = {
-    "Organization", "WebSite", "WebPage", "BreadcrumbList", "Article", "Product", "FAQPage", "Person", "SearchAction"
-}
-
-SUPPORTED_TYPES = {
-    term for term, meta in SEO_SCHEMA_LIBRARY.items()
-    if meta["rich_result_status"] == "Supported"
-}
 
 # =========================================================
 # DATA LOADING
@@ -323,6 +344,7 @@ def normalize_bucket(value):
     }
     return replacements.get(value, value)
 
+
 def normalize_term(value):
     value = str(value).strip()
     value = value.replace("http://schema.org/", "")
@@ -331,14 +353,6 @@ def normalize_term(value):
     value = value.split("/")[-1]
     return value.strip()
 
-def parse_terms_from_text(text):
-    if not text:
-        return []
-    separators = [",", "\n", ";", "|", "\t"]
-    for sep in separators[1:]:
-        text = text.replace(sep, ",")
-    terms = [normalize_term(x) for x in text.split(",") if normalize_term(x)]
-    return sorted(set(terms))
 
 @st.cache_data(ttl=3600)
 def get_csv_files():
@@ -346,28 +360,35 @@ def get_csv_files():
         response = requests.get(GITHUB_API_URL, timeout=20)
         if response.status_code != 200:
             return [FALLBACK_FILE]
-        files = response.json()
+
+        items = response.json()
         csv_files = sorted([
             item.get("name")
-            for item in files
+            for item in items
             if item.get("name", "").endswith(".csv")
         ])
+
         return csv_files if csv_files else [FALLBACK_FILE]
+
     except Exception:
         return [FALLBACK_FILE]
+
 
 @st.cache_data(ttl=3600)
 def load_month(file_name):
     url = RAW_BASE_URL + file_name
     response = requests.get(url, timeout=30)
+
     if response.status_code != 200:
         raise RuntimeError(f"Could not download {file_name}")
 
     df = pd.read_csv(StringIO(response.text))
-    required = ["Class", "Name", "Domain Bucket"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise RuntimeError(f"Missing required columns: {missing}")
+
+    required_cols = ["Class", "Name", "Domain Bucket"]
+    missing_cols = [col for col in required_cols if col not in df.columns]
+
+    if missing_cols:
+        raise RuntimeError(f"Missing columns in {file_name}: {missing_cols}")
 
     df = df.copy()
     df["month"] = file_name.replace(".csv", "")
@@ -375,53 +396,91 @@ def load_month(file_name):
     df["term"] = df["Name"].apply(normalize_term)
     df["bucket"] = df["Domain Bucket"].apply(normalize_bucket)
     df["adoption_tier"] = df["bucket"].map(BUCKET_ORDER).fillna(0).astype(int)
+    df["estimated_midpoint"] = df["bucket"].map(BUCKET_MIDPOINT).fillna(0).astype(int)
 
-    return df[["month", "term_type", "term", "bucket", "adoption_tier"]]
+    return df[["month", "term_type", "term", "bucket", "adoption_tier", "estimated_midpoint"]]
+
 
 @st.cache_data(ttl=3600)
-def load_all_data():
+def load_all_months():
     files = get_csv_files()
     frames = []
-    failed = []
+    skipped = []
 
     for file_name in files:
         try:
             frames.append(load_month(file_name))
         except Exception as exc:
-            failed.append((file_name, str(exc)))
+            skipped.append((file_name, str(exc)))
 
     if not frames:
-        st.error("No Schema.org public usage CSV could be loaded.")
+        st.error("No Schema.org public usage statistics CSV files could be loaded.")
         st.stop()
 
-    return pd.concat(frames, ignore_index=True), files, failed
+    return pd.concat(frames, ignore_index=True), files, skipped
+
 
 # =========================================================
-# SEO ENRICHMENT
+# ENRICHMENT / SCORING
 # =========================================================
 
-def get_meta(term, key, default):
-    return SEO_SCHEMA_LIBRARY.get(term, {}).get(key, default)
+def meta(term, field, default=None):
+    return GOOGLE_RICH_RESULT_MAP.get(term, {}).get(field, default)
 
-def bias_penalty(label):
-    if label == "High":
-        return 15
-    if label == "Medium":
-        return 8
-    if label == "Low":
-        return 0
-    return 4
 
-def rich_result_points(status):
-    if status == "Supported":
+def google_status_points(status):
+    if status == "Documented rich result":
+        return 35
+    if status == "Documented rich result / structured data feature":
         return 30
-    if status.startswith("Limited"):
-        return 10
-    if status == "Semantic only":
+    if status == "Documented rich result / carousel-compatible feature":
+        return 30
+    if status == "Related to documented Review/Product markup":
+        return 25
+    if status == "Related to documented Article markup":
+        return 22
+    if status == "Required/related property type for Product":
+        return 25
+    if status == "Limited / reduced visibility":
+        return 8
+    if status == "Not a standalone rich result":
         return 5
     return 0
 
-def classify_score(score):
+
+def cms_bias_penalty(bias):
+    if bias == "High":
+        return 15
+    if bias == "Medium":
+        return 8
+    if bias == "Low":
+        return 0
+    return 4
+
+
+def classify_gap(row):
+    adoption = row["adoption_tier"]
+    documented = row["is_google_documented"]
+    niche = row["industry_relevant"]
+    bias = row["cms_bias"]
+    status = row["google_status"]
+
+    if documented and niche and adoption <= 3:
+        return "High-value niche gap"
+    if documented and niche and adoption >= 4:
+        return "Core implementation priority"
+    if documented and not niche:
+        return "Documented but low niche fit"
+    if not documented and niche and adoption >= 3:
+        return "Semantic niche opportunity"
+    if adoption >= 4 and bias == "High":
+        return "Popular but likely plugin-driven"
+    if status == "Limited / reduced visibility":
+        return "Use with caution"
+    return "Low priority / investigate"
+
+
+def priority_label(score):
     if score >= 80:
         return "Critical"
     if score >= 60:
@@ -430,607 +489,454 @@ def classify_score(score):
         return "Medium"
     return "Low"
 
-def seo_bucket_label(row):
-    term = row["term"]
-    tier = row["adoption_tier"]
-    status = row["rich_result_status"]
-    bias = row["plugin_bias"]
-
-    if status == "Supported" and tier >= 4:
-        return "Operational priority"
-    if status == "Supported" and tier <= 3:
-        return "Hidden opportunity"
-    if tier >= 4 and bias == "High":
-        return "Commodity / plugin-default markup"
-    if status.startswith("Limited"):
-        return "Use with caution"
-    if status == "Semantic only" and tier >= 3:
-        return "Semantic architecture"
-    if tier <= 2:
-        return "Niche / emerging"
-    return "Investigate"
 
 def enrich(df, industry):
     df = df.copy()
 
-    df["rich_result_status"] = df["term"].apply(lambda x: get_meta(x, "rich_result_status", "Unknown"))
-    df["search_feature"] = df["term"].apply(lambda x: get_meta(x, "search_feature", "No known mapping"))
-    df["business_value"] = df["term"].apply(lambda x: get_meta(x, "business_value", 1))
-    df["plugin_bias"] = df["term"].apply(lambda x: get_meta(x, "plugin_bias", "High" if x in PLUGIN_DEFAULT_TYPES else "Unknown"))
-    df["why_it_matters"] = df["term"].apply(lambda x: get_meta(x, "why_it_matters", "No curated SEO note yet. Treat this as raw adoption data."))
-    df["implementation_note"] = df["term"].apply(lambda x: get_meta(x, "implementation_note", "Validate against page content, Google guidelines, and business relevance."))
+    recommended_set = set(INDUSTRY_RECOMMENDED_SETS.get(industry, []))
 
-    df["industry_match"] = df["term"].apply(
-        lambda x: industry in get_meta(x, "industries", [])
-    )
-    df["expected_for_industry"] = df["term"].apply(
-        lambda x: x in INDUSTRY_EXPECTED_SCHEMAS.get(industry, [])
+    df["google_status"] = df["term"].apply(lambda x: meta(x, "google_status", "Not mapped"))
+    df["google_feature"] = df["term"].apply(lambda x: meta(x, "google_feature", "No known Google rich result mapping"))
+    df["search_intent"] = df["term"].apply(lambda x: meta(x, "intent", "Unknown"))
+    df["seo_value"] = df["term"].apply(lambda x: meta(x, "seo_value", 1))
+    df["cms_bias"] = df["term"].apply(lambda x: meta(x, "cms_bias", "Unknown"))
+    df["gap_note"] = df["term"].apply(lambda x: meta(x, "gap_note", "No curated SEO note yet. Treat this as raw Schema.org adoption data."))
+    df["industry_relevant"] = df["term"].apply(lambda x: industry in meta(x, "industries", []))
+    df["recommended_for_industry"] = df["term"].apply(lambda x: x in recommended_set)
+
+    df["is_google_documented"] = df["google_status"].apply(
+        lambda x: (
+            "Documented rich result" in x
+            or "Related to documented" in x
+            or "Required/related" in x
+        )
     )
 
-    df["seo_actionability_score"] = (
+    df["google_gap_type"] = df.apply(classify_gap, axis=1)
+
+    df["gap_score"] = (
         df["adoption_tier"] * 8
-        + df["business_value"] * 7
-        + df["rich_result_status"].apply(rich_result_points)
-        + df["industry_match"].astype(int) * 15
-        + df["expected_for_industry"].astype(int) * 15
-        - df["plugin_bias"].apply(bias_penalty)
+        + df["seo_value"] * 8
+        + df["google_status"].apply(google_status_points)
+        + df["industry_relevant"].astype(int) * 15
+        + df["recommended_for_industry"].astype(int) * 15
+        - df["cms_bias"].apply(cms_bias_penalty)
     ).clip(lower=0, upper=100).round(0).astype(int)
 
-    df["seo_priority"] = df["seo_actionability_score"].apply(classify_score)
-    df["seo_lens"] = df.apply(seo_bucket_label, axis=1)
+    df["priority"] = df["gap_score"].apply(priority_label)
 
     return df
 
-def generate_executive_recommendation(row, industry, detected_terms=None):
-    detected_terms = detected_terms or []
+
+def make_explanation(row, industry):
     term = row["term"]
-    status = row["rich_result_status"]
-    tier = row["adoption_tier"]
-    score = row["seo_actionability_score"]
-    priority = row["seo_priority"]
-    detected = term in detected_terms
 
-    present_text = "already appears in your detected schema list" if detected else "does not appear in your detected schema list"
+    lines = [
+        f"### {term}",
+        "",
+        f"- **Adoption:** Tier {row['adoption_tier']} ({row['bucket']})",
+        f"- **Google documentation status:** {row['google_status']}",
+        f"- **Google feature mapping:** {row['google_feature']}",
+        f"- **Industry fit for {industry}:** {'Yes' if row['industry_relevant'] else 'No'}",
+        f"- **CMS/plugin bias:** {row['cms_bias']}",
+        f"- **Gap type:** {row['google_gap_type']}",
+        f"- **Priority:** {row['priority']} ({row['gap_score']}/100)",
+        "",
+        f"**SEO interpretation:** {row['gap_note']}",
+    ]
 
-    recommendation = f"""
-### {term}
+    if row["google_gap_type"] == "High-value niche gap":
+        lines.append("**Recommended action:** prioritize this as a niche opportunity. It is documented by Google but not yet broadly adopted across the public web.")
+    elif row["google_gap_type"] == "Core implementation priority":
+        lines.append("**Recommended action:** audit this across your main templates. It is both relevant to the niche and aligned with Google-documented structured data features.")
+    elif row["google_gap_type"] == "Popular but likely plugin-driven":
+        lines.append("**Recommended action:** validate quality, but do not treat popularity alone as evidence of competitive advantage.")
+    elif row["google_gap_type"] == "Semantic niche opportunity":
+        lines.append("**Recommended action:** use when it improves entity architecture, but do not sell it as a direct rich-result lever.")
+    elif row["google_gap_type"] == "Use with caution":
+        lines.append("**Recommended action:** use only when it genuinely matches visible page content. Do not over-prioritize for rich-result visibility.")
 
-**SEO Priority:** {priority}  
-**SEO Actionability Score:** {score}/100  
-**Public Web Adoption:** Tier {tier} ({BUCKET_LABELS.get(tier, "Unknown bucket")})  
-**Google Search Feature Mapping:** {row["search_feature"]}  
-**Rich Result Status:** {status}  
-**Your Site Status:** {term} {present_text}
+    return "\n".join(lines)
 
-**Why this matters:**  
-{row["why_it_matters"]}
-
-**Recommended action:**  
-{row["implementation_note"]}
-"""
-
-    if not detected and row["expected_for_industry"]:
-        recommendation += "\n**Gap finding:** This schema is part of the expected benchmark set for this industry. Review the relevant templates.\n"
-    elif detected:
-        recommendation += "\n**Audit finding:** Since this schema is already detected, focus on completeness, validation errors, duplication, and alignment with visible content.\n"
-
-    if row["plugin_bias"] == "High":
-        recommendation += "\n**Caution:** High adoption may be inflated by CMS/plugin defaults. Do not treat popularity alone as proof of SEO value.\n"
-
-    return recommendation.strip()
 
 # =========================================================
-# LOAD DATA
+# APP DATA
 # =========================================================
 
-all_df, available_files, failed_files = load_all_data()
-available_months = sorted(all_df["month"].unique(), reverse=True)
+all_df, csv_files, skipped_files = load_all_months()
+months = sorted(all_df["month"].unique(), reverse=True)
 
 # =========================================================
 # UI
 # =========================================================
 
-st.title("🧠 Schema SEO Intelligence")
+st.title("⚖️ Schema Comparator for SEO")
 st.markdown(
     """
-A decision-focused structured data audit tool for SEO professionals.
+Compare up to **6 Schema.org types** against public adoption data and Google rich-result documentation.
 
-It combines Schema.org public usage buckets with an editable SEO knowledge layer:
-rich-result relevance, implementation bias, template coverage, industry benchmarks, and audit recommendations.
+The goal is to identify the gap between:
+1. what is widely deployed on the public web,
+2. what Google documents for rich results,
+3. what matters in the selected niche.
 """
 )
 
-st.caption(
-    "Note: Schema.org usage buckets show public-web adoption, not ranking impact or guaranteed rich results."
+st.info(
+    "Important: Google documentation indicates eligibility, not a guarantee that a rich result will appear. Use this as an audit prioritization tool, not as a ranking-impact calculator."
 )
 
-st.sidebar.header("Audit Settings")
+st.sidebar.header("Analysis Settings")
 
 selected_month = st.sidebar.selectbox(
-    "Dataset month",
-    available_months,
+    "Schema.org usage dataset month",
+    months,
     key="selected_month"
 )
 
 selected_industry = st.sidebar.selectbox(
-    "Industry / site type",
-    list(INDUSTRY_EXPECTED_SCHEMAS.keys()),
+    "Niche / industry",
+    list(INDUSTRY_RECOMMENDED_SETS.keys()),
     key="selected_industry"
 )
-
-selected_templates = st.sidebar.multiselect(
-    "Templates to audit",
-    list(TEMPLATE_MAP.keys()),
-    default=["Homepage", "Product page"] if selected_industry == "Ecommerce" else ["Homepage", "Article page"],
-    key="selected_templates"
-)
-
-raw_detected_schemas = st.sidebar.text_area(
-    "Paste schemas already detected on the site",
-    value="",
-    placeholder="Example: Organization, WebSite, BreadcrumbList, Product",
-    height=120,
-    key="detected_schemas"
-)
-
-detected_terms = parse_terms_from_text(raw_detected_schemas)
 
 base_df = all_df[all_df["month"] == selected_month].copy()
 df = enrich(base_df, selected_industry)
 
+all_type_terms = sorted(df[df["term_type"].str.lower() == "type"]["term"].dropna().unique())
+default_terms = [t for t in DEFAULT_COMPARE_BY_INDUSTRY[selected_industry] if t in all_type_terms]
+
+if len(default_terms) < 6:
+    fallback = [t for t in ["Product", "Article", "BreadcrumbList", "Organization", "VideoObject", "Review"] if t in all_type_terms]
+    default_terms = (default_terms + fallback)[:6]
+
+st.sidebar.subheader("Select up to 6 schemas")
+
+selected_terms = st.sidebar.multiselect(
+    "Schemas to compare",
+    options=all_type_terms,
+    default=default_terms[:6],
+    max_selections=6,
+    key="schema_compare_selector"
+)
+
 with st.sidebar.expander("Dataset health"):
-    st.write("Rows:", len(df))
-    st.write("Months available:", len(available_months))
-    st.write("CSV files found:", len(available_files))
-    if failed_files:
-        st.write("Files skipped:", len(failed_files))
-    st.write("Sample terms:", df["term"].head(10).tolist())
+    st.write("Rows loaded:", len(df))
+    st.write("Months available:", len(months))
+    st.write("CSV files found:", len(csv_files))
+    st.write("Skipped files:", len(skipped_files))
+    st.write("Selected schemas:", selected_terms)
+
+if not selected_terms:
+    st.warning("Select at least one Schema.org type in the sidebar.")
+    st.stop()
+
+compare_df = df[df["term"].isin(selected_terms)].copy()
+
+# Preserve selection order
+compare_df["selection_order"] = compare_df["term"].apply(lambda x: selected_terms.index(x) if x in selected_terms else 999)
+compare_df = compare_df.sort_values("selection_order")
 
 # =========================================================
-# KPI HEADER
+# HEADER KPIS
 # =========================================================
 
-types_df = df[df["term_type"].str.lower() == "type"].copy()
-known_df = df[df["term"].isin(SEO_SCHEMA_LIBRARY.keys())].copy()
-supported_df = df[df["rich_result_status"] == "Supported"].copy()
-expected_terms = INDUSTRY_EXPECTED_SCHEMAS[selected_industry]
-expected_df = df[df["term"].isin(expected_terms)].copy()
+k1, k2, k3, k4 = st.columns(4)
 
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+documented_count = int(compare_df["is_google_documented"].sum())
+industry_count = int(compare_df["industry_relevant"].sum())
+avg_gap_score = round(compare_df["gap_score"].mean(), 1)
+highest = compare_df.sort_values("gap_score", ascending=False).iloc[0]["term"]
 
-kpi1.metric("Schema terms loaded", f"{len(df):,}")
-kpi2.metric("Types loaded", f"{len(types_df):,}")
-kpi3.metric("Curated SEO mappings", f"{len(known_df):,}")
-kpi4.metric("Industry benchmark terms", len(expected_terms))
+k1.metric("Schemas compared", len(compare_df))
+k2.metric("Google-documented", documented_count)
+k3.metric("Relevant to niche", industry_count)
+k4.metric("Top priority", highest)
 
-tabs = st.tabs([
-    "Executive Dashboard",
-    "Template Gap Audit",
-    "SEO Priority Matrix",
-    "Opportunity Finder",
-    "Compare Schemas",
-    "Trend Watch",
-    "Export Report",
-    "Raw Explorer"
-])
+tabs = st.tabs(
+    [
+        "Comparison Overview",
+        "Google Rich Result Gap",
+        "Niche Gap Finder",
+        "Side-by-Side Detail",
+        "Trend Comparison",
+        "Export"
+    ]
+)
 
 # =========================================================
-# TAB 1 EXECUTIVE
+# TAB 1 OVERVIEW
 # =========================================================
 
 with tabs[0]:
-    st.header("Executive Dashboard")
+    st.header("Comparison Overview")
+
+    col_a, col_b = st.columns([1.2, 1])
+
+    with col_a:
+        fig_score = px.bar(
+            compare_df.sort_values("gap_score", ascending=False),
+            x="term",
+            y="gap_score",
+            color="google_gap_type",
+            hover_data=[
+                "bucket", "adoption_tier", "google_status",
+                "google_feature", "industry_relevant", "cms_bias"
+            ],
+            title="SEO Gap Score by Schema",
+            labels={
+                "term": "Schema.org Type",
+                "gap_score": "SEO Gap Score",
+                "google_gap_type": "Gap Type"
+            }
+        )
+        st.plotly_chart(fig_score, use_container_width=True)
+
+    with col_b:
+        fig_adoption = px.bar(
+            compare_df.sort_values("adoption_tier", ascending=False),
+            x="term",
+            y="adoption_tier",
+            color="bucket",
+            title="Public Web Adoption Tier",
+            labels={
+                "term": "Schema.org Type",
+                "adoption_tier": "Adoption Tier"
+            }
+        )
+        st.plotly_chart(fig_adoption, use_container_width=True)
+
+    st.dataframe(
+        compare_df[
+            [
+                "term", "bucket", "adoption_tier", "google_status",
+                "google_feature", "industry_relevant", "cms_bias",
+                "google_gap_type", "priority", "gap_score"
+            ]
+        ],
+        use_container_width=True
+    )
+
+# =========================================================
+# TAB 2 GOOGLE RICH RESULT GAP
+# =========================================================
+
+with tabs[1]:
+    st.header("Google Rich Result Gap")
 
     st.markdown(
         """
-Use this page to move from a generic schema discussion to an implementation roadmap.
-The most useful question is not “which schema is most popular?”, but “which schema is missing from important templates and has a clear SEO use case?”
+This view highlights whether the selected schemas map to currently documented Google structured data features,
+or whether they are mainly semantic Schema.org types without a direct rich-result target.
 """
     )
 
-    priority_counts = (
-        df.groupby("seo_priority")
-        .size()
-        .reset_index(name="count")
-    )
-
-    lens_counts = (
-        df.groupby("seo_lens")
+    status_summary = (
+        compare_df.groupby(["google_status"])
         .size()
         .reset_index(name="count")
         .sort_values("count", ascending=False)
     )
 
-    col_a, col_b = st.columns(2)
+    fig_status = px.pie(
+        status_summary,
+        names="google_status",
+        values="count",
+        title="Google Documentation Status Among Selected Schemas"
+    )
+    st.plotly_chart(fig_status, use_container_width=True)
 
-    with col_a:
-        fig_priority = px.bar(
-            priority_counts,
-            x="seo_priority",
-            y="count",
-            title="SEO Priority Distribution",
-            labels={"seo_priority": "Priority", "count": "Terms"}
-        )
-        st.plotly_chart(fig_priority, use_container_width=True)
-
-    with col_b:
-        fig_lens = px.bar(
-            lens_counts,
-            x="seo_lens",
-            y="count",
-            title="SEO Lens Distribution",
-            labels={"seo_lens": "SEO Lens", "count": "Terms"}
-        )
-        st.plotly_chart(fig_lens, use_container_width=True)
-
-    st.subheader("Top action candidates")
-
-    top_candidates = df[
-        (df["term_type"].str.lower() == "type")
-        & (df["seo_priority"].isin(["Critical", "High"]))
-    ].sort_values("seo_actionability_score", ascending=False)
+    st.subheader("Selected schemas by Google status")
 
     st.dataframe(
-        top_candidates[
+        compare_df[
             [
-                "term", "bucket", "adoption_tier", "seo_priority",
-                "seo_actionability_score", "rich_result_status",
-                "search_feature", "plugin_bias", "seo_lens"
+                "term", "google_status", "google_feature",
+                "bucket", "adoption_tier", "priority",
+                "gap_score", "gap_note"
             ]
-        ].head(50),
+        ].sort_values("gap_score", ascending=False),
         use_container_width=True
     )
 
-# =========================================================
-# TAB 2 GAP AUDIT
-# =========================================================
+    st.subheader("Interpretation")
 
-with tabs[1]:
-    st.header("Template Gap Audit")
-
-    st.markdown(
-        """
-Paste the schemas already detected on a site in the sidebar.
-This tab compares them against the expected schema set for the selected industry and templates.
-"""
-    )
-
-    template_expected = set()
-    for template in selected_templates:
-        template_expected.update(TEMPLATE_MAP.get(template, []))
-
-    industry_expected = set(expected_terms)
-    audit_expected = sorted(industry_expected.union(template_expected))
-
-    audit_df = df[df["term"].isin(audit_expected)].copy()
-
-    detected_set = set(detected_terms)
-    audit_df["site_status"] = audit_df["term"].apply(
-        lambda x: "Detected" if x in detected_set else "Missing"
-    )
-
-    missing_df = audit_df[audit_df["site_status"] == "Missing"].copy()
-    detected_df = audit_df[audit_df["site_status"] == "Detected"].copy()
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Expected schemas", len(audit_expected))
-    c2.metric("Detected", len(detected_df))
-    c3.metric("Missing", len(missing_df))
-    coverage = round((len(detected_df) / len(audit_expected)) * 100, 1) if audit_expected else 0
-    c4.metric("Coverage", f"{coverage}%")
-
-    st.subheader("Missing schemas prioritized by SEO value")
-
-    if missing_df.empty:
-        st.success("No missing schemas from the selected benchmark set.")
-    else:
-        st.dataframe(
-            missing_df[
-                [
-                    "term", "seo_priority", "seo_actionability_score",
-                    "bucket", "rich_result_status", "search_feature",
-                    "plugin_bias", "seo_lens", "implementation_note"
-                ]
-            ].sort_values("seo_actionability_score", ascending=False),
-            use_container_width=True
-        )
-
-    st.subheader("Detected schemas to audit for quality")
-
-    if detected_df.empty:
-        st.info("No detected schemas were provided in the sidebar.")
-    else:
-        st.dataframe(
-            detected_df[
-                [
-                    "term", "seo_priority", "seo_actionability_score",
-                    "bucket", "rich_result_status", "search_feature",
-                    "plugin_bias", "implementation_note"
-                ]
-            ].sort_values("seo_actionability_score", ascending=False),
-            use_container_width=True
-        )
+    for _, row in compare_df.sort_values("gap_score", ascending=False).iterrows():
+        st.markdown(make_explanation(row, selected_industry))
+        st.divider()
 
 # =========================================================
-# TAB 3 MATRIX
+# TAB 3 NICHE GAP FINDER
 # =========================================================
 
 with tabs[2]:
-    st.header("SEO Priority Matrix")
+    st.header("Niche Gap Finder")
 
-    matrix_df = df[df["term_type"].str.lower() == "type"].copy()
-
-    fig_matrix = px.scatter(
-        matrix_df,
-        x="adoption_tier",
-        y="seo_actionability_score",
-        size="business_value",
-        color="seo_lens",
-        hover_name="term",
-        hover_data=["bucket", "rich_result_status", "search_feature", "plugin_bias", "seo_priority"],
-        title="Adoption vs SEO Actionability",
-        labels={
-            "adoption_tier": "Public Web Adoption Tier",
-            "seo_actionability_score": "SEO Actionability Score"
-        }
+    st.markdown(
+        f"""
+For **{selected_industry}**, this section compares your selected schemas against the recommended rich-result and structured data set for the niche.
+"""
     )
-    st.plotly_chart(fig_matrix, use_container_width=True)
 
-    st.info(
-        "High adoption is not automatically high SEO value. Some types are common because CMSs and plugins ship them by default."
+    recommended = INDUSTRY_RECOMMENDED_SETS[selected_industry]
+    recommended_df = df[df["term"].isin(recommended)].copy()
+    selected_set = set(selected_terms)
+
+    recommended_df["selected_for_comparison"] = recommended_df["term"].apply(lambda x: x in selected_set)
+
+    missing_recommended = recommended_df[~recommended_df["selected_for_comparison"]].copy()
+    selected_recommended = recommended_df[recommended_df["selected_for_comparison"]].copy()
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Recommended for niche", len(recommended))
+    c2.metric("Selected from recommended set", len(selected_recommended))
+    coverage = round((len(selected_recommended) / len(recommended)) * 100, 1) if recommended else 0
+    c3.metric("Comparison coverage", f"{coverage}%")
+
+    st.subheader("Recommended schemas for this niche")
+
+    st.dataframe(
+        recommended_df[
+            [
+                "term", "selected_for_comparison", "bucket",
+                "adoption_tier", "google_status", "google_feature",
+                "google_gap_type", "priority", "gap_score"
+            ]
+        ].sort_values(["selected_for_comparison", "gap_score"], ascending=[False, False]),
+        use_container_width=True
     )
+
+    st.subheader("Possible gaps not selected for comparison")
+
+    if missing_recommended.empty:
+        st.success("All recommended niche schemas are included in the comparison.")
+    else:
+        st.dataframe(
+            missing_recommended[
+                [
+                    "term", "bucket", "adoption_tier", "google_status",
+                    "google_feature", "google_gap_type", "priority",
+                    "gap_score", "gap_note"
+                ]
+            ].sort_values("gap_score", ascending=False),
+            use_container_width=True
+        )
 
 # =========================================================
-# TAB 4 OPPORTUNITY
+# TAB 4 SIDE BY SIDE
 # =========================================================
 
 with tabs[3]:
-    st.header("Opportunity Finder")
+    st.header("Side-by-Side Detail")
 
-    st.subheader("Hidden opportunities")
-    hidden = df[
-        (df["term_type"].str.lower() == "type")
-        & (df["seo_lens"] == "Hidden opportunity")
-    ].sort_values("seo_actionability_score", ascending=False)
+    cols = st.columns(len(compare_df))
 
-    st.dataframe(
-        hidden[
-            [
-                "term", "bucket", "adoption_tier", "seo_priority",
-                "seo_actionability_score", "rich_result_status",
-                "search_feature", "implementation_note"
-            ]
-        ],
-        use_container_width=True
-    )
-
-    st.subheader("Operational priorities")
-    operational = df[
-        (df["term_type"].str.lower() == "type")
-        & (df["seo_lens"] == "Operational priority")
-    ].sort_values("seo_actionability_score", ascending=False)
-
-    st.dataframe(
-        operational[
-            [
-                "term", "bucket", "adoption_tier", "seo_priority",
-                "seo_actionability_score", "rich_result_status",
-                "search_feature", "plugin_bias"
-            ]
-        ],
-        use_container_width=True
-    )
-
-    st.subheader("Commodity / plugin-default markup")
-    commodity = df[
-        (df["term_type"].str.lower() == "type")
-        & (df["seo_lens"] == "Commodity / plugin-default markup")
-    ].sort_values("adoption_tier", ascending=False)
-
-    st.dataframe(
-        commodity[
-            [
-                "term", "bucket", "adoption_tier", "plugin_bias",
-                "rich_result_status", "search_feature", "why_it_matters"
-            ]
-        ],
-        use_container_width=True
-    )
+    for idx, (_, row) in enumerate(compare_df.iterrows()):
+        with cols[idx]:
+            st.subheader(row["term"])
+            st.metric("Gap Score", f"{row['gap_score']}/100")
+            st.metric("Adoption Tier", int(row["adoption_tier"]))
+            st.write(f"**Bucket:** {row['bucket']}")
+            st.write(f"**Google:** {row['google_status']}")
+            st.write(f"**Feature:** {row['google_feature']}")
+            st.write(f"**Niche fit:** {'Yes' if row['industry_relevant'] else 'No'}")
+            st.write(f"**CMS bias:** {row['cms_bias']}")
+            st.write(f"**Gap type:** {row['google_gap_type']}")
+            st.caption(row["gap_note"])
 
 # =========================================================
-# TAB 5 COMPARE
+# TAB 5 TRENDS
 # =========================================================
 
 with tabs[4]:
-    st.header("Compare Schemas")
+    st.header("Trend Comparison")
 
-    compare_input = st.text_area(
-        "Enter Schema.org terms separated by commas or new lines",
-        value="TVSeries, TVSeason, TVEpisode, VideoObject, Movie",
-        key="compare_input"
-    )
-
-    compare_terms = parse_terms_from_text(compare_input)
-    compare_df = df[df["term"].isin(compare_terms)].copy()
-
-    missing_compare = [term for term in compare_terms if term not in compare_df["term"].tolist()]
-
-    if compare_df.empty:
-        st.warning("No matching terms found.")
-    else:
-        fig_compare = px.bar(
-            compare_df.sort_values("seo_actionability_score", ascending=False),
-            x="term",
-            y="seo_actionability_score",
-            color="seo_lens",
-            hover_data=["bucket", "adoption_tier", "rich_result_status", "search_feature", "plugin_bias"],
-            title="Schema Comparison by SEO Actionability"
-        )
-        st.plotly_chart(fig_compare, use_container_width=True)
-
-        st.dataframe(
-            compare_df[
-                [
-                    "term", "term_type", "bucket", "adoption_tier",
-                    "seo_priority", "seo_actionability_score",
-                    "rich_result_status", "search_feature",
-                    "plugin_bias", "why_it_matters", "implementation_note"
-                ]
-            ].sort_values("seo_actionability_score", ascending=False),
-            use_container_width=True
-        )
-
-    if missing_compare:
-        st.info("Not found in selected dataset month: " + ", ".join(missing_compare))
-
-# =========================================================
-# TAB 6 TREND
-# =========================================================
-
-with tabs[5]:
-    st.header("Trend Watch")
-
-    all_terms = sorted(all_df["term"].dropna().unique())
-    default_term = "Product" if "Product" in all_terms else all_terms[0]
-
-    trend_term = st.selectbox(
-        "Choose a term",
-        all_terms,
-        index=all_terms.index(default_term),
-        key="trend_term"
-    )
-
-    trend_df = all_df[all_df["term"] == trend_term].sort_values("month").copy()
+    trend_df = all_df[all_df["term"].isin(selected_terms)].copy()
     trend_df = enrich(trend_df, selected_industry)
 
     if trend_df.empty:
-        st.warning("No trend data available.")
+        st.warning("No trend data found for selected schemas.")
     else:
         fig_trend = px.line(
-            trend_df,
+            trend_df.sort_values("month"),
             x="month",
             y="adoption_tier",
+            color="term",
             markers=True,
-            title=f"Adoption Trend: {trend_term}",
-            labels={"month": "Month", "adoption_tier": "Adoption Tier"}
+            title="Adoption Tier Trend for Selected Schemas",
+            labels={
+                "month": "Month",
+                "adoption_tier": "Adoption Tier",
+                "term": "Schema"
+            }
         )
         st.plotly_chart(fig_trend, use_container_width=True)
 
-        st.dataframe(
-            trend_df[
-                [
-                    "month", "term", "bucket", "adoption_tier",
-                    "seo_lens", "seo_actionability_score", "rich_result_status"
-                ]
-            ],
-            use_container_width=True
-        )
+        pivot = trend_df.pivot_table(
+            index="month",
+            columns="term",
+            values="bucket",
+            aggfunc="first"
+        ).reset_index()
 
-        if len(trend_df) >= 2:
-            first = trend_df.iloc[0]["adoption_tier"]
-            last = trend_df.iloc[-1]["adoption_tier"]
-            if last > first:
-                st.success("Trend signal: adoption moved up a bucket.")
-            elif last < first:
-                st.warning("Trend signal: adoption moved down a bucket.")
-            else:
-                st.info("Trend signal: adoption remained in the same bucket.")
+        st.dataframe(pivot, use_container_width=True)
 
 # =========================================================
-# TAB 7 EXPORT
+# TAB 6 EXPORT
 # =========================================================
 
-with tabs[6]:
-    st.header("Export Report")
+with tabs[5]:
+    st.header("Export")
 
-    report_scope = st.radio(
-        "Report scope",
-        ["Industry benchmark", "Missing schemas", "All prioritized schemas"],
-        horizontal=True,
-        key="report_scope"
-    )
+    export_df = compare_df[
+        [
+            "term", "term_type", "month", "bucket", "adoption_tier",
+            "google_status", "google_feature", "search_intent",
+            "industry_relevant", "recommended_for_industry",
+            "cms_bias", "google_gap_type", "priority", "gap_score",
+            "gap_note"
+        ]
+    ].sort_values("gap_score", ascending=False)
 
-    if report_scope == "Industry benchmark":
-        report_df = df[df["term"].isin(expected_terms)].copy()
-    elif report_scope == "Missing schemas":
-        template_expected = set()
-        for template in selected_templates:
-            template_expected.update(TEMPLATE_MAP.get(template, []))
-        audit_expected = sorted(set(expected_terms).union(template_expected))
-        report_df = df[df["term"].isin(audit_expected)].copy()
-        report_df = report_df[~report_df["term"].isin(detected_terms)]
-    else:
-        report_df = df[df["term_type"].str.lower() == "type"].copy()
+    st.dataframe(export_df, use_container_width=True)
 
-    report_df = report_df.sort_values("seo_actionability_score", ascending=False)
-
-    st.dataframe(
-        report_df[
-            [
-                "term", "term_type", "bucket", "adoption_tier",
-                "seo_priority", "seo_actionability_score",
-                "rich_result_status", "search_feature",
-                "plugin_bias", "seo_lens",
-                "why_it_matters", "implementation_note"
-            ]
-        ],
-        use_container_width=True
-    )
-
-    csv_data = report_df.to_csv(index=False).encode("utf-8")
+    csv = export_df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        "Download CSV report",
-        data=csv_data,
-        file_name=f"schema_seo_intelligence_{selected_industry}_{selected_month}.csv",
+        "Download comparison CSV",
+        data=csv,
+        file_name=f"schema_comparison_{selected_industry}_{selected_month}.csv",
         mime="text/csv"
     )
 
-    st.subheader("Markdown executive summary")
-
-    summary_rows = report_df.head(10)
-    markdown_parts = [
-        f"# Schema SEO Intelligence Report",
-        f"",
+    markdown = [
+        "# Schema Rich Result Gap Comparison",
+        "",
         f"Generated: {datetime.utcnow().strftime('%Y-%m-%d')}",
         f"Industry: {selected_industry}",
         f"Dataset month: {selected_month}",
-        f"",
-        f"## Top Recommendations",
+        "",
+        "## Selected Schemas",
+        ", ".join(selected_terms),
+        "",
+        "## Recommendations",
+        "",
     ]
 
-    for _, row in summary_rows.iterrows():
-        markdown_parts.append(generate_executive_recommendation(row, selected_industry, detected_terms))
-        markdown_parts.append("")
+    for _, row in compare_df.sort_values("gap_score", ascending=False).iterrows():
+        markdown.append(make_explanation(row, selected_industry))
+        markdown.append("")
 
-    markdown_report = "\n".join(markdown_parts)
-    st.text_area("Copy report", markdown_report, height=420)
+    markdown_text = "\n".join(markdown)
+
+    st.text_area("Markdown report", markdown_text, height=420)
 
     st.download_button(
         "Download Markdown report",
-        data=markdown_report.encode("utf-8"),
-        file_name=f"schema_seo_intelligence_{selected_industry}_{selected_month}.md",
+        data=markdown_text.encode("utf-8"),
+        file_name=f"schema_comparison_{selected_industry}_{selected_month}.md",
         mime="text/markdown"
     )
 
-# =========================================================
-# TAB 8 RAW
-# =========================================================
-
-with tabs[7]:
-    st.header("Raw Explorer")
-
-    raw_search = st.text_input("Search raw term", value="", key="raw_search")
-
-    raw_df = df.copy()
-
-    if raw_search:
-        raw_df = raw_df[raw_df["term"].str.contains(raw_search, case=False, na=False)]
-
-    st.dataframe(
-        raw_df.sort_values(["adoption_tier", "term"], ascending=[False, True]),
-        use_container_width=True
-    )
-
 st.caption(
-    "Data source: Schema.org Public Usage Statistics. SEO mappings are editable and should be maintained against current Google Search documentation."
+    "Data source: Schema.org Public Usage Statistics. Google rich-result mapping is an editable knowledge layer based on Google Search structured data documentation."
 )
