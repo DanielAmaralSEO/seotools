@@ -610,14 +610,24 @@ if len(default_terms) < 6:
     fallback = [t for t in ["Product", "Article", "BreadcrumbList", "Organization", "VideoObject", "Review"] if t in all_type_terms]
     default_terms = (default_terms + fallback)[:6]
 
-st.sidebar.subheader("Select up to 6 schemas")
+st.sidebar.subheader("Quick Start")
+
+preset = st.sidebar.selectbox(
+    "Industry preset",
+    ["Custom"] + list(DEFAULT_COMPARE_BY_INDUSTRY.keys())
+)
+
+if preset != "Custom":
+    default_selection = DEFAULT_COMPARE_BY_INDUSTRY[preset]
+else:
+    default_selection = []
 
 selected_terms = st.sidebar.multiselect(
-    "Schemas to compare",
+    "Select up to 6 schemas",
     options=all_type_terms,
-    default=[BreadcrumbList],
+    default=default_selection,
     max_selections=6,
-    key="schema_compare_selector"
+    key="schema_selector"
 )
 
 with st.sidebar.expander("Dataset health"):
