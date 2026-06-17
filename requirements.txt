@@ -1,4 +1,5 @@
 streamlit
+requests
 oauth2client
 pandas
 numpy
