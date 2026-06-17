@@ -336,4 +336,3 @@ with st.expander("View Raw Dataset"):
 st.caption(
     "Source: Schema.org Public Usage Statistics Dataset"
 )
-```
