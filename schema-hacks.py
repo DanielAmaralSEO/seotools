@@ -836,13 +836,13 @@ with tabs[3]:
         options = playbook_df["term"].dropna().tolist()
         default_selection = playbook_df.sort_values("priority_score", ascending=False)["term"].head(min(6, len(playbook_df))).tolist()
     else:
-        options = sorted(df[df["term_type"].str.lower() == "type"]["term"].dropna().unique())
+        options = sorted(df["term"].dropna().unique())
         default_selection = []
-
+    
     selected_compare = st.multiselect(
         "Choose up to 6 schemas",
         options=options,
-        default=default_selection,
+        default=[x for x in default_selection if x in options],
         max_selections=6,
         key="compare_schema_selector"
     )
