@@ -906,25 +906,8 @@ with tabs[4]:
         "This view separates popular schemas from schemas that are actually mapped to Google-documented structured data features."
     )
 
-    full_types = df[df["term_type"].str.lower() == "type"].copy()
+    full_types = df.copy()
 
-    available_buckets = sorted(full_types["recommendation_bucket"].dropna().unique())
-
-    preferred_buckets = [
-        "Hidden gap",
-        "Core missing schema",
-        "Popular / plugin-driven",
-        "Semantic opportunity",
-    ]
-    
-    safe_default_buckets = [
-        bucket for bucket in preferred_buckets
-        if bucket in available_buckets
-    ]
-    
-    if not safe_default_buckets:
-        safe_default_buckets = available_buckets
-    
     available_buckets = sorted(
         full_types["recommendation_bucket"]
         .dropna()
@@ -932,62 +915,63 @@ with tabs[4]:
         .unique()
         .tolist()
     )
-    
-    preferred_buckets = [
-        "Hidden gap",
-        "Core missing schema",
-        "Popular / plugin-driven",
-        "Semantic opportunity",
-    ]
-    
-    safe_default_buckets = [
-        bucket for bucket in preferred_buckets
-        if bucket in available_buckets
-    ]
-    
-    if not safe_default_buckets:
-        safe_default_buckets = available_buckets
-    
+
     if not available_buckets:
         st.warning("No recommendation buckets available for this dataset/month.")
-        lens_filter = []
+        st.dataframe(full_types.head(50), use_container_width=True)
     else:
         lens_filter = st.multiselect(
             "Filter recommendation buckets",
             options=available_buckets,
-            default=safe_default_buckets,
+            default=available_buckets,
             key="lens_filter"
         )
-    if lens_filter:
+
         lens_df = full_types[
             full_types["recommendation_bucket"].astype(str).isin(lens_filter)
         ].copy()
-    else:
-        lens_df = full_types.copy()
 
-    fig_lens = px.scatter(
-        lens_df,
-        x="adoption_tier",
-        y="priority_score",
-        color="recommendation_bucket",
-        size="seo_value",
-        hover_name="term",
-        hover_data=["bucket", "google_feature", "google_status", "niche_relevant", "cms_bias"],
-        title="Public Adoption vs Niche SEO Priority",
-        labels={"adoption_tier": "Adoption Tier", "priority_score": "Priority Score"}
-    )
-    st.plotly_chart(fig_lens, use_container_width=True)
+        fig_lens = px.scatter(
+            lens_df,
+            x="adoption_tier",
+            y="priority_score",
+            color="recommendation_bucket",
+            size="seo_value",
+            hover_name="term",
+            hover_data=[
+                "bucket",
+                "google_feature",
+                "google_status",
+                "niche_relevant",
+                "cms_bias",
+            ],
+            title="Public Adoption vs Niche SEO Priority",
+            labels={
+                "adoption_tier": "Adoption Tier",
+                "priority_score": "Priority Score",
+            }
+        )
 
-    st.dataframe(
-        lens_df[
-            [
-                "term", "recommendation_bucket", "priority", "priority_score",
-                "bucket", "adoption_tier", "google_feature", "google_status",
-                "niche_relevant", "cms_bias", "why_it_matters"
-            ]
-        ].sort_values("priority_score", ascending=False).head(100),
-        use_container_width=True
-    )
+        st.plotly_chart(fig_lens, use_container_width=True)
+
+        st.dataframe(
+            lens_df[
+                [
+                    "term",
+                    "recommendation_bucket",
+                    "priority",
+                    "priority_score",
+                    "bucket",
+                    "adoption_tier",
+                    "google_feature",
+                    "google_status",
+                    "niche_relevant",
+                    "cms_bias",
+                    "why_it_matters",
+                ]
+            ].sort_values("priority_score", ascending=False).head(100),
+            use_container_width=True
+        )
 
 # =========================================================
 # TAB 6 TREND WATCH
