@@ -1445,7 +1445,7 @@ Created by **Daniel Amaral**.
 
 LinkedIn: [Daniel Amaral](https://www.linkedin.com/in/danielamaralrocha/)
 
-Concept, SEO methodology, and product direction by Daniel Rocha.
+Concept, SEO methodology, and product direction by Daniel Amaral.
 
 Data source: Schema.org Public Usage Statistics.  
 Google feature mapping: editable SEO knowledge layer based on Google Search structured data documentation.
