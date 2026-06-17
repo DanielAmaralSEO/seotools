@@ -908,10 +908,27 @@ with tabs[4]:
 
     full_types = df[df["term_type"].str.lower() == "type"].copy()
 
+    available_buckets = sorted(full_types["recommendation_bucket"].dropna().unique())
+
+    preferred_buckets = [
+        "Hidden gap",
+        "Core missing schema",
+        "Popular / plugin-driven",
+        "Semantic opportunity",
+    ]
+    
+    safe_default_buckets = [
+        bucket for bucket in preferred_buckets
+        if bucket in available_buckets
+    ]
+    
+    if not safe_default_buckets:
+        safe_default_buckets = available_buckets
+    
     lens_filter = st.multiselect(
         "Filter recommendation buckets",
-        sorted(full_types["recommendation_bucket"].unique()),
-        default=["Hidden gap", "Core missing schema", "Popular / plugin-driven", "Semantic opportunity"],
+        available_buckets,
+        default=safe_default_buckets,
         key="lens_filter"
     )
 
