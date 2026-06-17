@@ -304,11 +304,18 @@ def load_single_month(file_name):
         raise Exception(f"Missing columns in {file_name}: {missing}")
 
     df["month"] = file_name.replace(".csv", "")
-    df["term_type"] = df["Class"]
-    df["term"] = df["Name"]
+    df["term_type"] = df["Class"].astype(str).str.strip()
+    df["term"] = (
+    df["Name"]
+    .astype(str)
+    .str.replace("http://schema.org/", "", regex=False)
+    .str.replace("https://schema.org/", "", regex=False)
+    .str.replace("schema:", "", regex=False)
+    .str.strip()
+    )
     df["bucket"] = df["Domain Bucket"].apply(normalize_bucket)
     df["adoption_tier"] = df["bucket"].map(BUCKET_ORDER).fillna(0).astype(int)
-
+    
     return df
 
 
@@ -463,7 +470,12 @@ selected_month = st.sidebar.selectbox(
 
 current_df = all_df[all_df["month"] == selected_month].copy()
 current_df = enrich_with_seo_layer(current_df, selected_industry)
-
+with st.sidebar.expander("Debug dataset"):
+    st.write("Rows:", len(current_df))
+    st.write("Term types:", current_df["term_type"].unique().tolist())
+    st.write("Buckets:", current_df["bucket"].unique().tolist())
+    st.write("Sample terms:", current_df["term"].head(20).tolist())
+    
 tabs = st.tabs(
     [
         "1. Adoption Explorer",
@@ -527,7 +539,7 @@ with tabs[0]:
 with tabs[1]:
     st.header("SEO Priority Matrix")
 
-    matrix_df = current_df[current_df["term_type"] == "Type"].copy()
+    matrix_df = current_df.copy()
 
     fig = px.scatter(
         matrix_df,
