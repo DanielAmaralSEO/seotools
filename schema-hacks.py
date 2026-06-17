@@ -615,7 +615,7 @@ st.sidebar.subheader("Select up to 6 schemas")
 selected_terms = st.sidebar.multiselect(
     "Schemas to compare",
     options=all_type_terms,
-    default=default_terms[:6],
+    default=[],
     max_selections=6,
     key="schema_compare_selector"
 )
