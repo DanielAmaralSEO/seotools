@@ -1097,7 +1097,7 @@ with tabs[6]:
     st.download_button(
         "Download CSV playbook",
         data=csv,
-        file_name=f"schema_niche_playbook_{active_niche}_{selected_month}.csv"",
+        file_name=f"schema_niche_playbook_{active_niche}_{selected_month}.csv",
         mime="text/csv"
     )
 
