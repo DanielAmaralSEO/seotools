@@ -666,10 +666,11 @@ with tabs[4]:
     default_term = "TVSeries" if "TVSeries" in term_options else term_options[0]
 
     term_for_trend = st.selectbox(
-        "Choose a Schema.org term",
-        term_options,
-        index=term_options.index(default_term)
-    )
+    "Choose a Schema.org term",
+    term_options,
+    index=term_options.index(default_term),
+    key="trend_term_selectbox"
+)
 
     trend_df = all_df[all_df["term"] == term_for_trend].copy()
     trend_df = trend_df.sort_values("month")
@@ -768,10 +769,11 @@ with tabs[6]:
     default_term = "Product" if "Product" in term_options else term_options[0]
 
     selected_term = st.selectbox(
-        "Choose a Schema.org term",
-        term_options,
-        index=term_options.index(default_term)
-    )
+    "Choose a Schema.org term",
+    term_options,
+    index=term_options.index(default_term),
+    key="recommendation_term_selectbox"
+)
 
     selected_rows = current_df[current_df["term"] == selected_term]
 
