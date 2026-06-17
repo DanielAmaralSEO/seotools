@@ -739,7 +739,8 @@ tabs = st.tabs([
     "Compare Top Schemas",
     "Adoption vs Google",
     "Trend Watch",
-    "Export Report"
+    "Export Report",
+    "Guide & Credits"
 ])
 
 # =========================================================
@@ -1134,6 +1135,325 @@ with tabs[6]:
         mime="text/markdown"
     )
 
+# =========================================================
+# TAB 8 GUIDE & CREDITS
+# =========================================================
+
+with tabs[7]:
+    st.header("Guide & Methodology")
+
+    st.markdown(
+        """
+This guide explains how the app works, how the metrics are calculated, and how SEO professionals should interpret the results.
+
+The goal of this tool is not to say that a schema type is “better” only because it is popular.
+
+The main question is:
+
+> **What schemas should I care about for this specific niche?**
+"""
+    )
+
+    st.subheader("1. Data Source")
+
+    st.markdown(
+        """
+The adoption data comes from the **Schema.org Public Usage Statistics** dataset.
+
+The dataset provides monthly aggregated usage statistics for Schema.org terms across many domains.
+
+The app uses three core columns from the dataset:
+
+| Column | Meaning |
+|---|---|
+| `Class` | Whether the term is a Type or Property |
+| `Name` | The Schema.org term name |
+| `Domain Bucket` | Estimated bucket of unique domains using the term |
+
+Important: the dataset uses buckets, not exact counts.
+"""
+    )
+
+    st.subheader("2. Adoption Tier")
+
+    st.markdown(
+        """
+The app converts each `Domain Bucket` into an ordinal adoption tier.
+
+| Domain Bucket | Adoption Tier |
+|---|---:|
+| `< 1K` | 1 |
+| `1K - 10K` | 2 |
+| `10K - 100K` | 3 |
+| `100K - 1M` | 4 |
+| `> 1M` | 5 |
+
+This does **not** mean exact popularity.
+
+It only means the term appears within a broader adoption range.
+"""
+    )
+
+    st.code(
+        """
+BUCKET_ORDER = {
+    "< 1K": 1,
+    "1K - 10K": 2,
+    "10K - 100K": 3,
+    "100K - 1M": 4,
+    "> 1M": 5,
+}
+""",
+        language="python"
+    )
+
+    st.subheader("3. Google Rich Result Layer")
+
+    st.markdown(
+        """
+The app includes an editable knowledge layer that maps selected Schema.org terms to Google Search structured data features.
+
+Examples:
+
+| Schema | Google Feature | Status |
+|---|---|---|
+| Product | Product snippets / Merchant listings | Documented rich result |
+| BreadcrumbList | Breadcrumb | Documented rich result |
+| VideoObject | Video | Documented rich result |
+| FAQPage | FAQ | Limited / reduced visibility |
+| TVSeries | Entity understanding | Not a standalone rich result |
+
+Important:
+
+> Google documentation indicates eligibility for a rich result, not a guarantee that the rich result will appear.
+"""
+    )
+
+    st.subheader("4. Niche Playbook")
+
+    st.markdown(
+        """
+Each niche has a recommended schema playbook.
+
+For example:
+
+**Ecommerce**
+
+- Product
+- Offer
+- AggregateRating
+- Review
+- BreadcrumbList
+- Organization
+- VideoObject
+- FAQPage
+
+**Entertainment**
+
+- Movie
+- VideoObject
+- TVSeries
+- TVSeason
+- TVEpisode
+- Review
+- AggregateRating
+- BreadcrumbList
+
+The app now supports two modes:
+
+| Mode | Description |
+|---|---|
+| Use preset niche | Uses the predefined playbook |
+| Customize niche | Lets the user select their own schema terms |
+"""
+    )
+
+    st.subheader("5. Priority Score")
+
+    st.markdown(
+        """
+The `priority_score` is a heuristic score from 0 to 100.
+
+It combines:
+
+1. Public adoption
+2. SEO value
+3. Google documentation status
+4. Niche relevance
+5. Inclusion in the niche playbook
+6. CMS/plugin-default bias
+
+Current formula:
+"""
+    )
+
+    st.code(
+        """
+priority_score = (
+    adoption_tier * 8
+    + seo_value * 8
+    + google_status_points
+    + niche_relevant * 15
+    + in_niche_playbook * 15
+    - cms_bias_penalty
+)
+""",
+        language="python"
+    )
+
+    st.markdown(
+        """
+Then the score is clipped between 0 and 100.
+
+| Signal | Effect |
+|---|---|
+| Higher adoption tier | Increases score |
+| Higher SEO value | Increases score |
+| Google-documented rich result | Increases score |
+| Relevant to selected niche | Increases score |
+| Included in niche playbook | Increases score |
+| High CMS/plugin bias | Decreases score |
+
+The score is not a ranking factor.  
+It is an **audit prioritization score**.
+"""
+    )
+
+    st.subheader("6. Priority Labels")
+
+    st.markdown(
+        """
+The app converts the numeric score into a practical priority label.
+
+| Priority Score | Label |
+|---:|---|
+| 80 - 100 | Critical |
+| 60 - 79 | High |
+| 40 - 59 | Medium |
+| 0 - 39 | Low |
+"""
+    )
+
+    st.subheader("7. Recommendation Buckets")
+
+    st.markdown(
+        """
+The app also classifies each schema into a recommendation bucket.
+
+| Bucket | Meaning |
+|---|---|
+| Core missing schema | Strong niche fit, documented by Google, and missing from detected schemas |
+| Hidden gap | Google-documented and niche-relevant, but not broadly adopted |
+| Audit quality | Already detected; focus on quality and validation |
+| Semantic opportunity | Useful for entity architecture, but not a direct rich-result target |
+| Use cautiously | Limited or reduced Google visibility |
+| Popular / plugin-driven | Common because CMSs/plugins often generate it |
+| Low priority | Not clearly useful for the selected niche |
+"""
+    )
+
+    st.subheader("8. How to Use Each Feature")
+
+    st.markdown(
+        """
+### Niche Playbook
+
+Shows the recommended schema set for the selected niche.
+
+Use it to answer:
+
+> “Which schemas matter most for this kind of site?”
+
+---
+
+### Priority Roadmap
+
+Splits schemas into implementation actions.
+
+Use it to answer:
+
+> “What should we implement next?”
+
+---
+
+### Gap Analysis
+
+Compares the niche playbook against schemas already detected on the site.
+
+Use it to answer:
+
+> “What is missing from our structured data implementation?”
+
+---
+
+### Compare Top Schemas
+
+Lets you compare up to 6 schemas side by side.
+
+Use it to answer:
+
+> “Should I prioritize Product, VideoObject, FAQPage, Review, or something else?”
+
+---
+
+### Adoption vs Google
+
+Separates public-web adoption from Google-documented Search features.
+
+Use it to answer:
+
+> “Is this schema popular, actually useful for rich results, or just plugin noise?”
+
+---
+
+### Trend Watch
+
+Shows monthly adoption-tier movement.
+
+Use it to answer:
+
+> “Is this schema becoming more common over time?”
+
+---
+
+### Export Report
+
+Exports CSV and Markdown reports for audits, clients, stakeholders, or internal SEO roadmaps.
+"""
+    )
+
+    st.subheader("9. Interpretation Rules")
+
+    st.markdown(
+        """
+Use the results carefully:
+
+- High adoption does not always mean high SEO impact.
+- Low adoption does not always mean low value.
+- Google-documented eligibility does not guarantee rich-result visibility.
+- Plugin-generated schemas can inflate adoption numbers.
+- The best schema priority depends on page templates, visible content, and business model.
+- Always validate implementation with Google’s Rich Results Test and Search Console where applicable.
+"""
+    )
+
+    st.subheader("10. Credits")
+
+    st.markdown(
+        """
+Created by **Daniel Rocha**.
+
+LinkedIn: [Daniel Amaral Rocha](https://www.linkedin.com/in/danielamaralrocha/)
+
+Concept, SEO methodology, and product direction by Daniel Rocha.
+
+Data source: Schema.org Public Usage Statistics.  
+Google feature mapping: editable SEO knowledge layer based on Google Search structured data documentation.
+"""
+    )
+
 st.caption(
     "Data source: Schema.org Public Usage Statistics. Google mapping layer is editable and should be maintained against Google Search structured data documentation."
 )
+
+
