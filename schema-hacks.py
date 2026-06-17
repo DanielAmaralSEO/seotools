@@ -622,10 +622,15 @@ if preset != "Custom":
 else:
     default_selection = []
 
+safe_default_selection = [
+    term for term in default_selection
+    if term in all_type_terms
+][:6]
+
 selected_terms = st.sidebar.multiselect(
     "Select up to 6 schemas",
     options=all_type_terms,
-    default=default_selection,
+    default=safe_default_selection,
     max_selections=6,
     key="schema_selector"
 )
